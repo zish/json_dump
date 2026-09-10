@@ -1,0 +1,487 @@
+# json-dump — build, lint, test and packaging entrypoints.
+#
+# Every gate is defined exactly once, here. The git hooks (lefthook.yml) and the
+# CI workflows both invoke these targets rather than restating the commands, so
+# "it passed locally" and "it passed in CI" cannot drift apart.
+#
+# Nothing in this file is needed to *use* json-dump. The package itself has no
+# dependencies at all (see CLAUDE.md); everything below installs into throwaway
+# virtualenvs under this directory, and `make clean` removes every trace.
+
+SHELL := /usr/bin/env bash
+
+PY   ?= python3
+BIN   := $(CURDIR)/bin
+BUILD := $(CURDIR)/build
+
+# Pinned tool versions. Bump here; the hooks and CI follow automatically, since
+# both go through these targets.
+#
+# These are deliberately *not* declared in pyproject.toml. Extras there are part
+# of the published package metadata — a `dev` extra would show up in
+# `pip show json-dump` and invite `pip install json-dump[dev]` from people who
+# only want to run the thing. The developer toolchain is a property of this
+# checkout, so it lives in this checkout's build file.
+RUFF_VERSION      ?= 0.16.6
+MYPY_VERSION      ?= 2.3.1
+PIP_AUDIT_VERSION ?= 2.10.1
+ZIZMOR_VERSION    ?= 1.30.1
+LEFTHOOK_VERSION  ?= 2.1.12
+BUILD_VERSION     ?= 1.6.0
+
+# Nuitka is pinned here too, but note what is *absent*: no target below depends
+# on it except `binary`. `make tools` does not install it, `make check` does not
+# invoke it, and a clone that never runs `make binary` never downloads it.
+NUITKA_VERSION    ?= 4.2.1
+# patchelf is a hard requirement of Nuitka's standalone mode on Linux, and the
+# error when it is missing is a FATAL at the very end of an otherwise successful
+# compile. The PyPI wheel is used rather than the distro package so that a
+# `make binary` on a fresh Linux clone needs no root and no system packages;
+# the recipe puts the build venv's bin/ on PATH so Nuitka can find it there.
+# (Nuitka needs >= 0.13 for --add-rpath; the wheel is well past that.)
+PATCHELF_VERSION  ?= 0.19.1.0
+
+# Which optional formats get compiled into the binary. Empty means core only —
+# the stdlib formats that need no third-party package at all.
+#
+# `all` is the default for the same reason pyproject.toml calls it "the sensible
+# default install": someone downloading a single-file binary cannot pip-install
+# a missing codec into it afterwards, so the batteries have to be in the box.
+EXTRAS ?= all
+
+# The same knob for `test-isolated`, with the opposite default and a separate
+# name on purpose. Sharing one variable made `make test-isolated` -- documented
+# and exampled as the zero-dependency run -- quietly install everything, because
+# the binary's default won. The two targets want opposite answers to the same
+# question, so they get two variables.
+TEST_EXTRAS ?=
+
+# Read from the package rather than restated, so a release bumps one file.
+VERSION := $(shell $(PY) -c 'import json_dump; print(json_dump.__version__)' 2>/dev/null)
+
+# Branch that lint-new measures "new" against.
+MAIN_BRANCH ?= master
+
+PREFIX      ?= /usr/local
+MANDIR      ?= $(PREFIX)/share/man
+BASHCOMPDIR ?= $(PREFIX)/share/bash-completion/completions
+FISHCOMPDIR ?= $(PREFIX)/share/fish/vendor_completions.d
+ZSHCOMPDIR  ?= $(PREFIX)/share/zsh/site-functions
+
+# --------------------------------------------------------------- environments
+
+# Two virtualenvs, kept apart on purpose.
+#
+# .venv-tools holds the linters and never holds a runtime dependency of
+# json-dump. .venv-build holds Nuitka *and* whichever optional format packages
+# are being compiled in — Nuitka bundles what it can import, so the build env is
+# what selects the binary's feature set. Merging the two would silently make the
+# linters' transitive dependencies (pip-audit alone pulls in a dozen) candidates
+# for inclusion in a shipped binary.
+TOOLS_ENV := $(CURDIR)/.venv-tools
+BUILD_ENV := $(CURDIR)/.venv-build
+
+# uv is used when it is present because it is much faster and, more usefully,
+# because it creates virtualenvs on systems where the stdlib `venv` cannot:
+# a Python built without `ensurepip` (common in container and distro-split
+# installs) makes `python3 -m venv` fail outright. Neither path is required —
+# whichever runs, the result is the same layout at $(1)/bin/, so every target
+# below is written against that and does not care which one made it.
+UV ?= $(shell command -v uv 2>/dev/null)
+
+define mkvenv
+	@if [ ! -x "$(1)/bin/python" ]; then \
+	  if [ -n "$(UV)" ]; then $(UV) venv -q --python $(PY) "$(1)"; \
+	  else $(PY) -m venv "$(1)" || { \
+	    echo "error: could not create $(1)."; \
+	    echo "  $(PY) has no working 'venv' module (missing ensurepip?)."; \
+	    echo "  Install uv, or your distro's python3-venv / python3-pip package."; \
+	    exit 1; }; \
+	  fi; \
+	fi
+endef
+
+# The pip branch checks for pip rather than assuming it: a virtualenv created
+# by uv does not contain one, so a clone that installed uv, built its envs, and
+# then lost uv from PATH would otherwise fail with a bare "No module named pip".
+define venv_install
+	@if [ -n "$(UV)" ]; then $(UV) pip install -q --python "$(1)/bin/python" $(2); \
+	 elif [ -x "$(1)/bin/pip" ]; then "$(1)/bin/python" -m pip install -q $(2); \
+	 else echo "error: $(1) has no pip, and uv is not on PATH to stand in for it."; \
+	      echo "  The virtualenv was probably created by uv. Either put uv back on"; \
+	      echo "  PATH, pass it explicitly (make UV=/path/to/uv ...), or discard the"; \
+	      echo "  environments with 'make distclean' and build them again."; \
+	      exit 1; fi
+endef
+
+RUFF      := $(TOOLS_ENV)/bin/ruff
+MYPY      := $(TOOLS_ENV)/bin/mypy
+PIP_AUDIT := $(TOOLS_ENV)/bin/pip-audit
+ZIZMOR    := $(TOOLS_ENV)/bin/zizmor
+LEFTHOOK  := $(TOOLS_ENV)/bin/lefthook
+
+# One stamp file per pinned tool, with the version in the *name*. Bumping a pin
+# above therefore names a stamp that does not exist, and the tool is reinstalled
+# — the same effect as version-stamping a binary's filename, which is the only
+# way to get it when the package manager installs to a fixed path.
+define tool_rule
+$(TOOLS_ENV)/.stamp-$(1)-$(2):
+	$$(call mkvenv,$$(TOOLS_ENV))
+	$$(call venv_install,$$(TOOLS_ENV),$(3)==$(2))
+	@rm -f $$(TOOLS_ENV)/.stamp-$(1)-*
+	@touch $$@
+endef
+
+$(eval $(call tool_rule,ruff,$(RUFF_VERSION),ruff))
+$(eval $(call tool_rule,mypy,$(MYPY_VERSION),mypy))
+$(eval $(call tool_rule,pip-audit,$(PIP_AUDIT_VERSION),pip-audit))
+$(eval $(call tool_rule,zizmor,$(ZIZMOR_VERSION),zizmor))
+$(eval $(call tool_rule,lefthook,$(LEFTHOOK_VERSION),lefthook))
+$(eval $(call tool_rule,build,$(BUILD_VERSION),build))
+
+NEED_RUFF      := $(TOOLS_ENV)/.stamp-ruff-$(RUFF_VERSION)
+NEED_MYPY      := $(TOOLS_ENV)/.stamp-mypy-$(MYPY_VERSION)
+NEED_PIP_AUDIT := $(TOOLS_ENV)/.stamp-pip-audit-$(PIP_AUDIT_VERSION)
+NEED_ZIZMOR    := $(TOOLS_ENV)/.stamp-zizmor-$(ZIZMOR_VERSION)
+NEED_LEFTHOOK  := $(TOOLS_ENV)/.stamp-lefthook-$(LEFTHOOK_VERSION)
+NEED_BUILD     := $(TOOLS_ENV)/.stamp-build-$(BUILD_VERSION)
+
+.DEFAULT_GOAL := help
+
+# Renders "name<separator>description" lines as an aligned two-column list with
+# the left column bold. Two comment markers feed it, both read straight out of
+# this file: `## target: what it does`, and `#> make command  # what it does`
+# for the Examples section. A target and any worked example of it are therefore
+# written together, where the recipe is, and cannot drift from it.
+#
+# It splits on the *first* separator only, via match()/substr() rather than FS:
+# a description is free text and contains colons of its own ("(default: none)"),
+# and an FS-based split would silently truncate at the first of them.
+#
+# The column width is measured rather than fixed, because a hand-tuned %-12s
+# fails silently — the first name longer than the pad pushes its own row out of
+# line and nothing says so. It is pasted into the format string rather than
+# passed as a %-*s argument: `*` is a printf(3) feature that POSIX awk does not
+# promise, and this file gets read by more than one awk.
+COLUMNIZE = awk -v sep=$(1) '{ i = match($$0, sep); n[NR] = substr($$0, 1, i - 1); \
+	d[NR] = substr($$0, i + RLENGTH); if (length(n[NR]) > w) w = length(n[NR]) } \
+	END { fmt = "  \033[1m%-" w "s\033[0m  %s\n"; for (j = 1; j <= NR; j++) printf fmt, n[j], d[j] }'
+
+## help: list every target, with examples of the common invocations
+.PHONY: help
+help:
+	@printf '\033[1mjson-dump %s\033[0m\n\n\033[1mTargets\033[0m\n' '$(VERSION)'
+	@grep -hE '^## ' $(MAKEFILE_LIST) | sed 's/^## //' | $(call COLUMNIZE,': *')
+	@printf '\n\033[1mExamples\033[0m\n'
+	@grep -hE '^#> ' $(MAKEFILE_LIST) | sed 's/^#> //' | $(call COLUMNIZE,' +# ')
+
+#> make                             # the default goal: this help
+#> make tools hooks                 # one-time setup, in a fresh clone
+#> make check                       # everything CI runs, in CI's order
+
+# ---------------------------------------------------------------------- lint
+
+## fmt: apply formatting fixes in place
+.PHONY: fmt
+fmt: $(NEED_RUFF)
+	$(RUFF) format .
+	$(RUFF) check --select I --fix .
+
+## fmt-check: fail on unformatted code without modifying anything
+.PHONY: fmt-check
+fmt-check: $(NEED_RUFF)
+	$(RUFF) format --check --diff .
+
+## lint: run the ruff rule set (correctness, bugbear, and the bandit checks)
+.PHONY: lint
+lint: $(NEED_RUFF)
+	$(RUFF) check .
+
+#> make lint-fix                    # apply the lint fixes ruff can make itself
+## lint-fix: run the rule set and apply the fixes ruff can make itself
+.PHONY: lint-fix
+lint-fix: $(NEED_RUFF)
+	$(RUFF) check --fix .
+
+# `lint` above takes the whole tree, which is the right default because the tree
+# is clean and keeping it that way is cheaper than paying a backlog down twice.
+# This is the quick pass for a long-lived branch: the files it touched, nothing
+# else. Ruff has no equivalent of golangci-lint's --new-from-merge-base -- it
+# lints files, not line ranges -- so this is file-granular and will report a
+# pre-existing finding in a file the branch happens to touch.
+#> make lint-new MAIN_BRANCH=main   # lint just the files this branch touched
+## lint-new: lint only the files this branch changed
+.PHONY: lint-new
+lint-new: $(NEED_RUFF)
+	@files=$$(git diff --name-only --diff-filter=d $(MAIN_BRANCH)... -- '*.py' 2>/dev/null); \
+	 if [ -z "$$files" ]; then \
+	   echo "no Python files changed against $(MAIN_BRANCH)"; \
+	 else \
+	   echo "$$files" | tr '\n' ' '; echo; $(RUFF) check $$files; \
+	 fi
+
+## typecheck: mypy over the package
+.PHONY: typecheck
+typecheck: $(NEED_MYPY)
+	$(MYPY) json_dump scripts
+
+# ---------------------------------------------------------------------- test
+
+# Plain `unittest` on whatever interpreter is in front of you. What that
+# interpreter has installed decides how much of the suite is exercised, which is
+# the point: the same command is the core gate and the full gate, and CI varies
+# only the environment around it.
+#
+# TestPerlParity is part of this and self-skips when perl(1) is absent. CI has
+# perl, so the byte-identical `--perl-compat` invariant is checked there on
+# every push.
+## test: run the unit tests against the current interpreter
+.PHONY: test
+test:
+	$(PY) -m unittest discover -s tests -v
+
+# The zero-dependency invariant is the project's headline promise and nothing
+# in the tree enforced it until this target: a stray `import yaml` at module
+# scope would keep passing on any developer machine that happens to have PyYAML,
+# and only break for the person who ran `pip install json-dump` with no extras.
+#
+# EXTRAS= (empty) is that person's environment, reproduced exactly.
+#> make test-isolated                    # prove the core still runs with zero deps
+#> make test-isolated TEST_EXTRAS=all    # ...and again with every optional format
+## test-isolated: run the suite in a fresh venv holding only TEST_EXTRAS (default: none)
+.PHONY: test-isolated
+test-isolated:
+	@rm -rf $(CURDIR)/.venv-test
+	$(call mkvenv,$(CURDIR)/.venv-test)
+	$(call venv_install,$(CURDIR)/.venv-test,$(if $(TEST_EXTRAS),'.[$(TEST_EXTRAS)]','.'))
+	$(CURDIR)/.venv-test/bin/python -m unittest discover -s tests -v
+	@rm -rf $(CURDIR)/.venv-test
+
+# The zero-dependency invariant is checked by importing the package and looking
+# at what came with it, so it is meaningful in any environment -- including this
+# one, with every extra installed. That is the point: it fails on a module-scope
+# `import yaml` even on the machine where PyYAML is present, which is the only
+# machine the mistake is ever made on.
+## core-check: assert importing json_dump pulls in nothing third-party
+.PHONY: core-check
+core-check:
+	$(PY) scripts/check_core_isolation.py
+
+# The committed completion scripts read their *format* lists from the binary at
+# runtime, so those can never go stale. The flag lists are another matter: they
+# are typed out in all three files, and a flag added to cli.py is invisible to
+# them. That is what this compares.
+## completions-check: fail if a CLI flag is missing from a shell completion
+.PHONY: completions-check
+completions-check:
+	$(PY) scripts/check_completions.py
+
+# ------------------------------------------------------------------- security
+
+# Two different questions, deliberately kept as two targets.
+#
+# `vuln` asks whether the packages json-dump *depends on* have known CVEs. With
+# no required dependencies the interesting surface is the optional set, so this
+# audits the project with every extra resolved — the maximal install, which is
+# what `pip install 'json-dump[all]'` gives someone.
+#
+# `audit` asks whether the CI configuration itself is exploitable: script
+# injection through untrusted interpolation, over-broad token permissions,
+# unpinned third-party actions. A workflow is code with credentials, and it is
+# the one part of this repository that a linter for Python will never read.
+## vuln: known vulnerabilities in the optional dependency set (pip-audit)
+.PHONY: vuln
+vuln: $(NEED_PIP_AUDIT)
+	$(PIP_AUDIT) --strict --progress-spinner=off .
+
+## audit: static analysis of the GitHub Actions workflows (zizmor)
+.PHONY: audit
+audit: $(NEED_ZIZMOR)
+	$(ZIZMOR) --persona=regular .github/
+
+# --------------------------------------------------------------------- build
+
+# Built with the pinned `build` frontend from .venv-tools rather than whatever
+# the ambient interpreter happens to have, so that a release artifact does not
+# depend on the state of the machine that cut it.
+## dist: build the sdist and wheel into dist/
+.PHONY: dist
+dist: $(NEED_BUILD)
+	@rm -rf $(CURDIR)/dist
+	$(TOOLS_ENV)/bin/python -m build --outdir $(CURDIR)/dist
+
+# --- the single-file binary -------------------------------------------------
+#
+# Nuitka compiles the package to C and links it, with CPython and the selected
+# third-party packages, into one executable. It is entirely opt-in: this is the
+# only target that installs it, and it does so on first use.
+#
+# The AGPL is worth knowing about before shipping the output. Nuitka itself is
+# AGPLv3, but it carries a runtime-library exception (LICENSE-RUNTIME.txt) in
+# the manner of GCC's: the permission is explicitly to "propagate a work of
+# Target Code ... under terms of your choice". The compiler's copyleft does not
+# reach the compiled program, so a binary built from this MIT-licensed tree can
+# stay MIT. Modifying and redistributing Nuitka is the part that does not.
+
+BUILD_STAMP := $(BUILD_ENV)/.stamp-$(NUITKA_VERSION)-$(if $(EXTRAS),$(EXTRAS),core)
+
+# Nuitka[onefile] rather than plain Nuitka: the extra pulls in zstandard, and
+# without it Nuitka emits a *warning* and silently ships the payload
+# uncompressed — a ~38 MB binary where ~13 MB was available.
+#
+# The environment is destroyed and rebuilt rather than updated in place, because
+# installing is not the inverse of installing. Going from EXTRAS=all to EXTRAS=
+# installs '.' into an environment that still has PyYAML and msgpack sitting in
+# it, nuitka_includes.py still finds them, and the "core only" binary quietly
+# ships every optional library. This only fires when a pin or EXTRAS actually
+# changed -- that is what the stamp name encodes -- so the cost is a reinstall
+# exactly when one is warranted.
+$(BUILD_STAMP):
+	@rm -rf $(BUILD_ENV)
+	$(call mkvenv,$(BUILD_ENV))
+	$(call venv_install,$(BUILD_ENV),'nuitka[onefile]==$(NUITKA_VERSION)' 'patchelf==$(PATCHELF_VERSION); sys_platform == "linux"')
+	$(call venv_install,$(BUILD_ENV),$(if $(EXTRAS),'.[$(EXTRAS)]','.'))
+	@rm -f $(BUILD_ENV)/.stamp-*
+	@touch $@
+
+# Two flags here are load-bearing rather than cosmetic:
+#
+# --python-flag=-m compiles json_dump as a package, entered at its __main__.
+# Handing Nuitka the path json_dump/__main__.py instead compiles that file as a
+# top-level script, which promotes its siblings to top-level modules — and this
+# package contains codecs.py. The stdlib `codecs` gets shadowed by ours, the
+# interpreter cannot import `encodings` during its own startup, and the binary
+# dies before reaching any json_dump code with "No module named 'codecs'". The
+# compile itself succeeds and says nothing.
+#
+# --deployment turns off the compatibility diagnostics Nuitka builds in to help
+# during development; they are dead weight in a shipped artifact.
+#
+# Not used here, after measuring: --onefile-tempdir-spec. It pins the unpack
+# directory so the payload survives between runs, which sounds like the obvious
+# win for a CLI. On this tree it saves 12 ms out of a 150 ms startup (8%) and
+# leaves 51 MB sitting in ~/.cache for every version ever run. The startup cost
+# of onefile is the bootstrap process itself, not the unpacking, so caching the
+# unpack barely moves it. The default -- extract, run, clean up -- is the better
+# trade.
+#
+# Worth knowing before choosing this format at all: onefile is a *deployment*
+# win, not a speed one. Measured on this tree, one `--version` invocation:
+#
+#     onefile binary        150 ms
+#     --standalone dist/     42 ms
+#     python -m json_dump    46 ms
+#
+# The single file costs ~110 ms per invocation against just running the source,
+# because the bootstrap unpacks and then execs a second process. That is the
+# price of "one file, no Python needed anywhere". For a filter in a tight shell
+# loop, `--standalone` (a directory, not a file) is the faster shape.
+NUITKA_FLAGS = \
+	--onefile \
+	--python-flag=-m \
+	--python-flag=no_site \
+	--output-dir=$(BUILD)/nuitka \
+	--output-filename=json-dump \
+	--deployment \
+	--assume-yes-for-downloads \
+	--company-name='Jeremy Melanson' \
+	--product-name=json-dump \
+	--product-version=$(VERSION) \
+	--file-description='Flatten, convert and merge nested data structures'
+
+#> make binary                      # single file with every stable format in it
+#> make binary EXTRAS=              # ...core formats only, no third-party code
+#> make binary EXTRAS=all,extras    # ...including bson, avro and protobuf
+## binary: compile a single-file executable into bin/ (installs Nuitka on first use)
+.PHONY: binary
+binary: $(BUILD_STAMP)
+	@mkdir -p $(BIN)
+	@rm -rf $(BUILD)/nuitka
+	PATH="$(BUILD_ENV)/bin:$$PATH" $(BUILD_ENV)/bin/python -m nuitka \
+	  $(NUITKA_FLAGS) \
+	  $$($(BUILD_ENV)/bin/python scripts/nuitka_includes.py) \
+	  json_dump
+	@mv $(BUILD)/nuitka/json-dump $(BIN)/json-dump
+	@printf '\n\033[1m%s\033[0m  (%s)\n' '$(BIN)/json-dump' "$$(du -h $(BIN)/json-dump | cut -f1)"
+	@$(BIN)/json-dump --version
+
+## binary-report: show which formats the current build environment would compile in
+.PHONY: binary-report
+binary-report: $(BUILD_STAMP)
+	@$(BUILD_ENV)/bin/python scripts/nuitka_includes.py --report
+
+# Compiling in a format and then finding it unavailable at runtime is the exact
+# failure the include flags exist to prevent, so the check is that the binary
+# agrees with the build environment about what it can do.
+# Deliberately run with the *build* interpreter rather than $(PY): the check is
+# "does the binary do what the environment that produced it could do", and the
+# ambient interpreter has its own, unrelated set of packages installed.
+## binary-check: assert the built binary offers the formats it was built with
+.PHONY: binary-check
+binary-check: $(BUILD_STAMP)
+	@test -x $(BIN)/json-dump || { echo "no $(BIN)/json-dump — run: make binary"; exit 1; }
+	$(BUILD_ENV)/bin/python scripts/check_binary.py $(BIN)/json-dump
+
+# ------------------------------------------------------------------- install
+
+## install: the compiled binary, its manpage and the shell completions
+.PHONY: install
+install:
+	@test -x $(BIN)/json-dump || { echo "no $(BIN)/json-dump — run: make binary"; exit 1; }
+	install -d $(DESTDIR)$(PREFIX)/bin $(DESTDIR)$(MANDIR)/man1
+	install -m0755 $(BIN)/json-dump $(DESTDIR)$(PREFIX)/bin/json-dump
+	install -m0644 man/json-dump.1 $(DESTDIR)$(MANDIR)/man1/json-dump.1
+	install -d $(DESTDIR)$(BASHCOMPDIR) $(DESTDIR)$(FISHCOMPDIR) $(DESTDIR)$(ZSHCOMPDIR)
+	install -m0644 contrib/completions/json-dump.bash $(DESTDIR)$(BASHCOMPDIR)/json-dump
+	install -m0644 contrib/completions/json-dump.fish $(DESTDIR)$(FISHCOMPDIR)/json-dump.fish
+	install -m0644 contrib/completions/_json-dump    $(DESTDIR)$(ZSHCOMPDIR)/_json-dump
+
+## uninstall: remove what install placed
+.PHONY: uninstall
+uninstall:
+	rm -f $(DESTDIR)$(PREFIX)/bin/json-dump $(DESTDIR)$(MANDIR)/man1/json-dump.1
+	rm -f $(DESTDIR)$(BASHCOMPDIR)/json-dump $(DESTDIR)$(FISHCOMPDIR)/json-dump.fish
+	rm -f $(DESTDIR)$(ZSHCOMPDIR)/_json-dump
+
+# ----------------------------------------------------------------- aggregates
+
+# fmt-check is missing from both lists on purpose, and it is the only gate that
+# is. The tree is hand-aligned rather than ruff-formatted, and adopting the
+# formatter is a ~700-line diff across nearly every file -- a decision that is
+# recorded, with the reasoning and the three edits that reverse it, in
+# ROADMAP.md §6. CI still runs it on every push as a non-blocking step, so the
+# debt is reported continuously rather than forgotten. Everything else here is
+# enforced and passes on the whole tree.
+#> make precommit                   # the fast gate, before committing
+#> make fmt-check                   # the one deferred gate — see ROADMAP.md §6
+## check: everything CI enforces, in CI's order
+.PHONY: check
+check: lint typecheck core-check completions-check test vuln audit
+
+## precommit: the fast gate the pre-commit hook runs
+.PHONY: precommit
+precommit: lint core-check test
+
+# --------------------------------------------------------------------- tools
+
+## tools: install the pinned linters into .venv-tools (never Nuitka)
+.PHONY: tools
+tools: $(NEED_RUFF) $(NEED_MYPY) $(NEED_PIP_AUDIT) $(NEED_ZIZMOR) $(NEED_LEFTHOOK)
+
+## hooks: install the git hooks (once per clone, and after a version bump)
+.PHONY: hooks
+hooks: $(NEED_LEFTHOOK)
+	@printf 'export LEFTHOOK_BIN=%s\n' '$(LEFTHOOK)' > .lefthook-rc.sh
+	$(LEFTHOOK) install
+
+## clean: remove build output and the compiled binary
+.PHONY: clean
+clean:
+	rm -rf $(BUILD)/nuitka $(BIN) $(CURDIR)/dist $(CURDIR)/*.egg-info
+	find . -name __pycache__ -type d -prune -exec rm -rf {} +
+	rm -rf .mypy_cache .ruff_cache
+
+## distclean: clean, plus every virtualenv this Makefile created
+.PHONY: distclean
+distclean: clean
+	rm -rf $(TOOLS_ENV) $(BUILD_ENV) $(CURDIR)/.venv-test $(CURDIR)/build

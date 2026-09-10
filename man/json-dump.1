@@ -1,0 +1,833 @@
+.\" Manpage for json-dump.
+.\" Author: Jeremy Melanson
+.TH JSON\-DUMP 1 "2026-08-20" "json-dump 0.2.0" "User Commands"
+.
+.SH NAME
+json\-dump \- flatten, convert and merge arbitrary nested data structures
+.
+.SH SYNOPSIS
+.B json\-dump
+.RI [ OPTION ...]
+.RI [ FILE ...]
+.
+.SH DESCRIPTION
+.B json\-dump
+reads one or more nested data structures, optionally merges and deduplicates
+them, and writes the result in a chosen format.
+.PP
+With no options it prints one line per leaf value, each line being the full
+path to that leaf in a pseudo\-perl notation.  One leaf per line is what makes
+a document tractable to
+.BR grep (1),
+.BR less (1),
+.BR cut (1)
+and
+.BR awk (1),
+including the case those handle worst: a document that arrives as a single
+line with no newlines in it, where a match is the whole file.
+.PP
+Its second mode converts between serialisation formats.  Support for each
+format depends on optional Python packages; formats whose dependencies are
+absent are hidden from
+.B \-\-help
+and replaced by a one\-line notice describing how to enable them.  See
+.B FORMATS
+below and
+.BR "json\-dump \-\-list\-formats" .
+.
+.SH OUTPUT NOTATIONS
+The path dump is rendered from a
+.IR template :
+a table of literal strings saying how one leaf is spelled as a line of some
+language.  Select one with
+.BR \-\-template ,
+list them with
+.BR \-\-list\-templates ,
+and see
+.B TEMPLATES
+below for writing your own.
+.
+.SS perl (default)
+The original notation.  Each line is the path to a leaf with the leaf value
+appended:
+.PP
+.RS 4
+.EX
+ROOT.{definitions}.{vendor}.{type}."object"
+ROOT.{presets}.0.{name}."default"
+ROOT.{presets}.0.{hidden}.true
+.EE
+.RE
+.PP
+Mapping keys appear as
+.BR .{ key },
+sequence indices as
+.BI . n\fR,
+strings and numbers alike as
+\fB."\fIvalue\fB"\fR,
+and booleans bare as
+.B .true
+or
+.BR .false .
+Numbers being quoted like strings is the notation's one real loss: 1 and "1"
+render identically.
+.
+.SS python
+Every line is a valid Python assignment statement:
+.PP
+.RS 4
+.EX
+ROOT['definitions']['vendor']['type'] = 'object'
+ROOT['presets'][0]['name'] = 'default'
+ROOT['presets'][0]['hidden'] = True
+ROOT['presets'][0]['tags'] = []
+.EE
+.RE
+.PP
+Values are rendered with Python's
+.BR repr (),
+so quoting and escaping are exact and unambiguous, numbers keep their type,
+and empty containers are representable.  The output can be pasted into an
+interpreter or replayed line by line to rebuild the structure.
+.
+.SS The rest
+The same leaf,
+.BR "{\(dqhosts\(dq: [{\(dqname\(dq: \(dqweb\-01\(dq}]}" ,
+in each remaining built\-in notation:
+.PP
+.PD 0
+.TP 14
+.B javascript
+.B ROOT.hosts[0].name = \(dqweb\-01\(dq;
+.TP
+.B cpp
+.B ROOT["hosts"][0]["name"] = \(dqweb\-01\(dq;
+.TP
+.B go
+.B ROOT["hosts"][0]["name"] = \(dqweb\-01\(dq
+.TP
+.B rust
+.B ROOT["hosts"][0]["name"] = json!(\(dqweb\-01\(dq);
+.TP
+.B ruby
+.B ROOT["hosts"][0]["name"] = \(dqweb\-01\(dq
+.TP
+.B php
+.B $ROOT["hosts"][0]["name"] = \(dqweb\-01\(dq;
+.TP
+.B lua
+.B ROOT["hosts"][1]["name"] = \(dqweb\-01\(dq
+.TP
+.B r
+.B ROOT[["hosts"]][[1]][["name"]] <\- \(dqweb\-01\(dq
+.TP
+.B jq
+.B .["hosts"][0]["name"] = \(dqweb\-01\(dq
+.TP
+.B jsonpath
+.B $.hosts[0].name = \(dqweb\-01\(dq
+.TP
+.B jsonpointer
+.B /hosts/0/name = \(dqweb\-01\(dq
+.TP
+.B dotted
+.B ROOT.hosts.0.name=web\-01
+.TP
+.B shell
+.B ROOT[hosts.0.name]=\(aqweb\-01\(aq
+.PD
+.PP
+.B lua
+and
+.B r
+count array elements from 1, because those languages do.
+.B dotted
+quotes nothing, which makes it the easiest to hand to
+.BR cut (1)
+and
+.BR awk (1)
+and the easiest to confuse with a value containing a separator \(em pair it
+with
+.BR \-e .
+.B shell
+emits a
+.B "declare \-A"
+header and flattens the nesting into the key, so the output can be sourced
+into bash.
+.
+.SH OPTIONS
+.SS Input
+.TP
+.BR \-i ", " \-f ", " \-\-input\-format ", " \-\-from " \fIFMT\fR"
+Format of the input.  Default
+.BR auto ,
+which detects from the file extension and then from the leading bytes.  Pass
+an explicit format when reading binary data from a pipe.
+.TP
+.BR \-m ", " \-\-multipacket
+Treat each line of the input as a separate document rather than reading the
+whole stream as one.  Formats with native multi\-document support (YAML,
+JSONL, MessagePack, CBOR, BSON, Avro) always split on their own record
+boundaries regardless of this flag.
+.TP
+.BR \-r ", " \-\-reverse
+Process documents in reverse order, newest first \(em the usual want when the
+input is an append\-only log.  Implies
+.BR \-\-multipacket .
+.TP
+.BI \-\-input\-encoding " ENC"
+Character encoding for text input formats.  Default
+.BR utf\-8 .
+.
+.SS Output
+.TP
+.BR \-o ", " \-t ", " \-\-output\-format ", " \-\-to " \fIFMT\fR"
+Format to emit.  Default
+.BR perl .
+Any pseudocode template name works here too
+.RB ( python ", " javascript ", " go ", " r ", " ...),
+as does any writable data format, which converts instead of flattening.
+Giving both a data format and
+.B \-\-template
+is an error, since one of the two would have to be ignored.
+.TP
+.BR \-O ", " \-\-output " \fIFILE\fR"
+Write to
+.I FILE
+instead of standard output.  Binary formats refuse to write to a terminal.
+.TP
+.BI \-\-indent " N"
+Indentation width for structured text output.  Default 2.
+.TP
+.B \-\-compact
+Emit structured output on a single line with no indentation.  Overrides
+.BR \-\-indent .
+.TP
+.BR \-s ", " \-\-sort\-keys
+Sort mapping keys.  Python preserves insertion order, so output is already
+deterministic; this makes it comparable across inputs whose keys were written
+in different orders.
+.TP
+.B \-\-ascii
+Escape all non\-ASCII characters in text output.
+.TP
+.BI \-\-null\-policy " POLICY"
+What to do with null values when the target format cannot represent them
+(TOML, NestedText).
+.B keep
+leaves them for the codec to handle,
+.B drop
+removes the key entirely, and
+.B empty
+writes an empty string.  Default
+.BR keep .
+.TP
+.BI \-\-avro\-schema " FILE"
+Read an Avro writer schema (JSON) from
+.I FILE
+instead of inferring one from the data.  Inference is approximate; supply a
+schema for anything load\-bearing.
+.
+.SS Path dump
+These affect the pseudocode notations only, not the data formats.
+.TP
+.BR \-T ", " \-\-template " \fINAME\fR|\fIFILE\fR"
+Notation to render paths in: a built\-in name
+.RB ( perl ,
+.BR python ,
+.BR javascript ,
+.BR cpp ,
+.BR go ,
+.BR rust ,
+.BR ruby ,
+.BR php ,
+.BR lua ,
+.BR r ,
+.BR jq ,
+.BR jsonpath ,
+.BR jsonpointer ,
+.BR dotted ,
+.BR shell ),
+a name found on the template search path, or the path to a JSON or TOML
+template file.  Default
+.BR perl .
+Every built\-in is also an output format of its own name, so
+.B \-t go
+and
+.B \-T go
+are the same request; only
+.B \-T
+can reach a template held in a file.  See
+.B TEMPLATES
+below.
+.TP
+.BR \-e ", " \-\-escape\-special
+Escape carriage returns, line feeds and tabs in leaf values so every leaf
+stays on one line.  Affects only the notations that quote minimally
+.RB ( perl ,
+.BR dotted ,
+.BR shell );
+the rest escape unconditionally, because their quoting styles have to.
+.TP
+.B \-\-perl\-compat
+Restore the quirks of the original Perl script this tool grew out of (see
+.BR HISTORY ),
+reproducing its output byte for byte: null renders as
+.RB \(lq "" \(rq
+rather than
+.BR undef ,
+empty maps and arrays emit no line at all, and
+.B \-e
+escapes only CR and LF.  Only the
+.B perl
+notation claims that compatibility; other templates ignore this flag rather
+than adopting a second language's bugs.
+.TP
+.BI \-\-root " NAME"
+Name of the root node in dumped paths.  Default: whatever the template calls
+it \(em
+.B ROOT
+for most,
+.B $ROOT
+for
+.BR php ,
+.B .
+for
+.BR jq .
+.
+.SS Merging
+Multiple input files are merged into a single structure before output.
+.TP
+.B \-\-no\-merge
+Emit each input document separately instead of merging them into one
+structure.
+.TP
+.BI \-\-merge\-strategy " STRATEGY"
+How to combine mappings that define the same key.
+.RS
+.PD 0
+.TP 10
+.B deep
+Recurse; later documents win at the leaves.  Default.
+.TP
+.B shallow
+The later document replaces the whole value.
+.TP
+.B last
+The later document wins outright.
+.TP
+.B first
+The earlier document wins outright.
+.TP
+.B collect
+Gather conflicting values into a deduplicated list.
+.PD
+.RE
+.TP
+.BI \-\-list\-merge " STRATEGY"
+How to combine arrays at the same path.
+.RS
+.PD 0
+.TP 10
+.B concat
+Append.  Default.
+.TP
+.B union
+Append, dropping structural duplicates.
+.TP
+.B replace
+The later array wins.
+.TP
+.B keep
+The earlier array wins.
+.TP
+.B index
+Merge element\-wise by position.
+.PD
+.RE
+.TP
+.BR \-d ", " \-\-dedup
+After merging, remove structurally identical elements from every array,
+keeping the first occurrence.  Comparison is by value
+.I and
+type, so
+.BR 1 ,
+.B 1.0
+and
+.B true
+remain distinct even though Python considers them equal.
+.TP
+.BI \-\-wrap\-key " MODE"
+Instead of merging, key each document by its source:
+.BR basename ,
+.B stem
+(basename without extension),
+.BR path ,
+or
+.BR index .
+Also useful to give a top\-level mapping to formats that require one (TOML,
+BSON, Avro).  Default
+.BR none .
+.
+.SS Information
+.TP
+.BR \-h ", " \-\-help
+Show a summary of options and exit.
+.TP
+.BR \-L ", " \-\-list\-formats
+List every known format with its availability, then exit.
+.TP
+.B \-\-list\-templates
+List every pseudocode template \(em built\-in first, then any found on the
+search path \(em with one rendered example of each, then exit.  With
+.B \-\-porcelain
+the fields are tab\-separated: name, source, aliases, example, summary.
+.TP
+.BI \-\-help\-template " [NAME]"
+Explain one template field by field, then exit.  With no
+.IR NAME ,
+explain how to write one.
+.TP
+.BI \-\-dump\-template " NAME"
+Print a template as JSON \(em the starting point for editing one into a
+notation of your own \(em then exit.
+.TP
+.BI \-\-help\-format " FMT"
+Explain one format in detail \(em dependencies, caveats and round\-trip
+limitations \(em then exit.  Works for formats that are not installed.
+.TP
+.B \-\-porcelain
+Make
+.B \-\-list\-formats
+emit tab\-separated fields for scripts and shell completion instead of prose.
+Fields are: name, usable directions, encoding kind, availability
+.RB ( yes / no ),
+comma\-separated aliases, summary.
+.TP
+.BI \-\-direction " DIR"
+Restrict
+.B \-\-list\-formats
+to readable
+.RB ( in )
+or writable
+.RB ( out )
+formats.  Default
+.BR any .
+.TP
+.BR \-V ", " \-\-version
+Show version information \(em which formats are currently enabled, and which
+pseudocode notations are available \(em and exit.
+.
+.SH TEMPLATES
+A template is a JSON (or TOML) file of literal strings describing how one leaf
+is spelled as a line of some language.  It is data: nothing in it is imported,
+evaluated or executed, and the loader rejects any field, placeholder or
+quoting style it does not recognise.
+.PP
+Start from the closest built\-in and edit it:
+.PP
+.RS 4
+.EX
+json\-dump \-\-dump\-template javascript > kotlin.json
+.EE
+.RE
+.PP
+or state only the differences and inherit the rest with
+.BR base :
+.PP
+.RS 4
+.EX
+{
+  "base": "javascript",
+  "name": "kotlin",
+  "summary": "Kotlin map/list assignments",
+  "line": "%p = %v",
+  "bare": "",
+  "empty_map": "mapOf<String, Any?>()"
+}
+.EE
+.RE
+.PP
+.B base
+inherits behaviour but never identity: the aliases, notes and summary of the
+parent are not adopted.
+.
+.SS Fields
+.PD 0
+.TP 16
+.B root
+Name of the root node;
+.B \-\-root
+overrides it.
+.TP
+.B path
+How root and the path chain combine.  Default
+.BR %r%c .
+.TP
+.B key
+One mapping key.  Default
+.BR [%s] .
+.TP
+.B bare
+Alternative key form used when the key is an identifier, as
+.B .%r
+is in JavaScript.  Empty disables it.
+.TP
+.B index
+One sequence index.  Default
+.BR [%s] .
+.TP
+.B join
+Inserted between segments, never before the first.
+.TP
+.B index_base
+0, or 1 for languages that count arrays from one.
+.TP
+.B line
+The whole line.  Default
+.BR "%p = %v" .
+.TP
+.B header
+List of lines emitted once, before the first leaf.
+.TP
+.B quote
+Quoting style for string values; see below.
+.TP
+.B key_quote
+Quoting style for keys.  Defaults to
+.BR quote .
+.TP
+.B quote_numbers
+True to quote numbers like strings, as the
+.B perl
+notation does.
+.TP
+.B trim_floats
+True to print 1.0 as 1.
+.TP
+.B repr_scalars
+True to spell every scalar with Python's
+.BR repr ().
+.TP
+.BR true ", " false ", " null
+The three literals.
+.TP
+.BR empty_map ", " empty_seq
+Literals for containers with nothing in them.
+.TP
+.B compat_quirks
+True to honour
+.B \-\-perl\-compat
+in this notation.
+.TP
+.BR name ", " summary ", " aliases ", " notes
+What
+.B \-\-list\-templates
+and
+.B \-\-help\-template
+show.
+.PD
+.
+.SS Placeholders
+.PD 0
+.TP 6
+.B %r
+Root name (in
+.BR path ", " header ")," 
+or a key's raw, unquoted text (in
+.BR key ", " bare ).
+.TP
+.B %c
+The chain of rendered path segments (in
+.BR path ).
+.TP
+.B %s
+The segment as a literal in the target language (in
+.BR key ", " index ).
+.TP
+.B %p
+The finished path (in
+.BR line ).
+.TP
+.B %v
+The finished value (in
+.BR line ).
+.TP
+.B %%
+A literal percent sign.
+.PD
+.PP
+Expansion runs on the template, never on the text it produced, so a value
+containing
+.B %v
+is data rather than markup.
+.
+.SS Quoting styles
+.PD 0
+.TP 10
+.B json
+Double quotes with JSON escapes.  Correct for JavaScript, C++, Go, Rust, R
+and jq.
+.TP
+.B python
+Python
+.BR repr ().
+.TP
+.B perl
+Double quotes, escapes applied only under
+.BR \-e .
+.TP
+.B shell
+POSIX single quotes.
+.TP
+.B sql
+SQL single quotes, doubled rather than escaped.
+.TP
+.B raw
+No quoting;
+.B \-e
+still escapes CR, LF and TAB.
+.TP
+.B pointer
+RFC 6901 token escaping; for keys.
+.PD
+.
+.SS Search path
+A bare
+.BI \-\-template " NAME"
+that is not built in is looked for as
+.IB NAME .json
+and then
+.IB NAME .toml
+in each directory of
+.BR $JSON_DUMP_TEMPLATES ,
+then in
+.IR $XDG_CONFIG_HOME/json\-dump/templates .
+Built\-in names always resolve first and cannot be shadowed, so a file cannot
+quietly redefine
+.B perl
+for a script that expected it.  An argument containing a path separator, or
+ending in
+.B .json
+or
+.BR .toml ,
+is read as a file.
+.
+.SH FORMATS
+Availability is a property of a
+.IR direction ,
+not of a format as a whole: TOML can always be read using the standard
+library's
+.B tomllib
+but needs
+.B tomli\-w
+to be written, so it may be listed as usable for input only.
+.PP
+.PD 0
+.TP 18
+.B json
+JSON (RFC 8259).  Always available.
+.TP
+.B jsonl
+Newline\-delimited JSON.  Always available.
+.TP
+.B repr
+Python literal, read via
+.BR ast.literal_eval .
+Always available.
+.TP
+.BR perl ", " python ", " javascript ", " cpp ", " go ", " rust ", " ruby ", " php ", " lua ", " r ", " jq ", " jsonpath ", " jsonpointer ", " dotted ", " shell
+Pseudocode path dumps, one per built\-in template.  Output only.  See
+.B OUTPUT NOTATIONS
+and
+.BR TEMPLATES .
+.TP
+.B pseudocode
+The path dump in whatever notation
+.B \-\-template
+named, including one read from a file.  Output only.
+.TP
+.B yaml
+YAML 1.1, safe subset only.  Needs
+.BR PyYAML .
+.TP
+.B json5
+JSON5.  Needs
+.B json5
+or
+.BR pyjson5 .
+.TP
+.B toon
+Token\-Oriented Object Notation.  Needs
+.BR toon\-format .
+.TP
+.B toml
+TOML 1.0.  Reading is standard library; writing needs
+.BR tomli\-w .
+.TP
+.B msgpack
+MessagePack.  Needs
+.BR msgpack .
+.TP
+.B cbor
+CBOR (RFC 8949).  Needs
+.BR cbor2 .
+.TP
+.B bson
+BSON.  Needs
+.B pymongo
+(not the unrelated PyPI package named
+.BR bson ).
+.TP
+.B avro
+Apache Avro container files.  Needs
+.BR fastavro .
+.TP
+.B nestedtext
+NestedText.  Needs
+.BR nestedtext .
+.TP
+.B protobuf\-struct
+.BR google.protobuf.Value ,
+the schemaless well\-known type.  Needs
+.BR protobuf .
+.PD
+.PP
+Run
+.B json\-dump \-\-help\-format
+.I NAME
+for each format's round\-trip caveats.
+.
+.SH EXIT STATUS
+.PD 0
+.TP 6
+.B 0
+Success.
+.TP
+.B 2
+Usage error, unreadable input, unparseable input, or a format whose
+dependencies are not installed.
+.TP
+.B 130
+Interrupted.
+.PD
+.
+.SH EXAMPLES
+.TP
+Flatten a JSON document in the original notation:
+.EX
+json\-dump config.json
+.EE
+.TP
+The same document as Python assignments:
+.EX
+json\-dump \-\-to python config.json
+.EE
+.TP
+The same document as Go, or R, or jq:
+.EX
+json\-dump \-\-template go config.json
+.EE
+.TP
+Render with a notation of your own:
+.EX
+json\-dump \-\-template ./kotlin.json config.json
+.EE
+.TP
+Reproduce the original Perl script's output exactly:
+.EX
+json\-dump \-\-perl\-compat \-e config.json
+.EE
+.TP
+Merge three config fragments, deduplicate every array, emit YAML:
+.EX
+json\-dump \-\-to yaml \-\-dedup base.json site.json local.json
+.EE
+.TP
+Merge without losing conflicting values:
+.EX
+json\-dump \-\-merge\-strategy collect \-\-to json a.json b.json
+.EE
+.TP
+Keep each file under its own key instead of merging:
+.EX
+json\-dump \-\-wrap\-key stem \-\-to json */settings.json
+.EE
+.TP
+Dump a packet capture newest packet first:
+.EX
+json\-dump \-r packets.jsonl
+.EE
+.TP
+Convert MessagePack from a pipe to indented JSON:
+.EX
+producer | json\-dump \-\-from msgpack \-\-to json
+.EE
+.TP
+Find every leaf whose path mentions a preset name:
+.EX
+json\-dump presets.json | grep '{name}'
+.EE
+.
+.SH ENVIRONMENT
+.TP
+.B COLUMNS
+Width used to wrap
+.B \-\-help
+output.
+.TP
+.B JSON_DUMP_TEMPLATES
+Directories searched for pseudocode templates, separated by the platform's
+path separator, ahead of the XDG config directory.
+.TP
+.B XDG_CONFIG_HOME
+Base of the per\-user config directory searched for templates.  Defaults to
+.IR ~/.config .
+.
+.SH FILES
+.TP
+.I ~/.config/json\-dump/templates/
+Pseudocode templates available as
+.BI \-\-template " NAME"
+without a path.
+.
+.SH SEE ALSO
+.BR jq (1),
+.BR yq (1),
+.BR gron (1)
+.PP
+.BR jq (1)
+is the tool for queries, joins and transformations, at the price of a filter
+language to learn;
+.B json\-dump
+is for the other half of the work \(em finding where a value lives, reading the
+shape of an unfamiliar document, or grepping a directory of them with the tools
+already to hand.
+.BR gron (1)
+takes the same approach with a single fixed notation; the
+.B javascript
+template with
+.B \-\-root json
+is that notation.
+.PP
+The project roadmap describes planned work: SQL\-style filtering with embedded
+pseudo\-python expressions, an interactive query shell, an out\-of\-core storage
+backend for structures larger than RAM, Ibis integration, and direct
+publication to document databases.
+.
+.SH AUTHOR
+Jeremy Melanson.
+.
+.SH HISTORY
+.B json\-dump
+is a direct descendant of
+.BR json_dump.pl ,
+a Perl script its author wrote and used daily for several years \(em and would
+probably still be using, had Perl stayed as ubiquitous on a fresh machine as it
+once was.  The rewrite exists because that assumption stopped holding, not
+because the notation needed fixing: the default output is the same notation for
+the same reason, and
+.B \-\-perl\-compat
+reproduces the original byte for byte, quirks included.  The Perl script is
+kept in the source tree, where the test suite runs it alongside the rewrite and
+compares the two line for line.

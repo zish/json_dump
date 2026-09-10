@@ -1,0 +1,223 @@
+# CI for json-dump.
+#
+# Every step shells out to a make target, so this file stays a scheduler: what
+# "lint" or "test" means lives in the Makefile, which the git hooks call too.
+# Porting to another CI system is a rewrite of the YAML around the make calls,
+# not a rewrite of the gates.
+#
+# Actions are pinned to commit SHAs rather than tags. A tag is a movable
+# pointer: whoever controls the action's repository can repoint v7 at new code,
+# and that code runs here with this workflow's token. Dependabot bumps the pins
+# (.github/dependabot.yml) so the cost of pinning is a pull request, not manual
+# tracking.
+
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+  # New advisories land against unchanged code, so the vuln job needs a
+  # heartbeat of its own rather than waiting for the next push.
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # ruff, mypy and zizmor all produce far more readable output with colour on,
+  # and the runners' logs render it. Without this they detect a non-tty and
+  # emit the plain form.
+  FORCE_COLOR: "1"
+
+jobs:
+  static:
+    name: format, lint, types
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # checkout leaves the job's token in .git/config unless told not
+          # to. Nothing here needs to push, and a workspace that gets
+          # archived would carry the credential with it.
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+
+      # Keyed on the Makefile because that is where the tool versions are
+      # pinned; a bump there must miss the cache and reinstall, or the job would
+      # keep running the old linter and reporting the old findings.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .venv-tools
+          key: ${{ runner.os }}-tools-${{ hashFiles('Makefile') }}
+
+      # Reported, not enforced. The tree is hand-aligned rather than
+      # ruff-formatted; the decision and the three edits that reverse it are
+      # in ROADMAP.md §6. Running it here anyway means the size of the debt
+      # shows up in every CI log instead of in a comment nobody re-reads.
+      - name: format (advisory — see ROADMAP.md §6)
+        run: make fmt-check
+        continue-on-error: true
+
+      - run: make lint
+      - run: make typecheck
+
+      # The committed completion scripts against the flags they were written
+      # for. This belongs with the static gates rather than the tests: what it
+      # catches is a flag added without a completion, which is a stale file in
+      # the tree and not a failing behaviour.
+      - run: make completions-check
+
+  test:
+    name: test (${{ matrix.python }}, ${{ matrix.deps }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Every interpreter the package claims to support, in both of the
+        # installations it claims to support. `core` is not a smaller version of
+        # `all` -- it is the configuration where a stray module-scope `import
+        # yaml` finally breaks, and it is the one that would otherwise never be
+        # exercised, because every developer machine has the extras installed.
+        python: ["3.11", "3.12", "3.13", "3.14"]
+        deps: [core, all]
+        include:
+          # bson, avro and protobuf-struct -- the formats pyproject.toml calls
+          # "sharper edges". One interpreter covers them: what they add is three
+          # more codecs, not another interpreter's behaviour.
+          - python: "3.13"
+            deps: all,extras
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # checkout leaves the job's token in .git/config unless told not
+          # to. Nothing here needs to push, and a workspace that gets
+          # archived would carry the credential with it.
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: install
+        run: |
+          python -m pip install --upgrade pip
+          if [ "${{ matrix.deps }}" = core ]; then
+            python -m pip install .
+          else
+            python -m pip install ".[${{ matrix.deps }}]"
+          fi
+
+      # The zero-dependency invariant, asserted rather than assumed. `pip
+      # install json-dump` with no extras must give working perl/python/json/
+      # jsonl/repr output and TOML input; if an optional package leaked into the
+      # import path at module scope, this is where it shows up -- as an
+      # ImportError naming the offender, before any test has run.
+      # The zero-dependency invariant, asserted rather than assumed. It runs in
+      # both matrix legs on purpose: in `core` it is the real environment, and
+      # in `all` it proves the imports stayed lazy even with every optional
+      # package sitting there importable.
+      - run: make core-check
+
+      # perl(1) is preinstalled on the GitHub runners, which is what makes the
+      # --perl-compat parity test meaningful here: locally it self-skips when
+      # perl is absent, so CI is the only place the byte-identical guarantee is
+      # actually checked on every push.
+      - name: perl is present, so parity is really tested
+        run: perl -v | head -2
+
+      - run: make test
+
+  vuln:
+    name: dependency vulnerabilities
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # checkout leaves the job's token in .git/config unless told not
+          # to. Nothing here needs to push, and a workspace that gets
+          # archived would carry the credential with it.
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .venv-tools
+          key: ${{ runner.os }}-tools-${{ hashFiles('Makefile') }}
+      - run: make vuln
+
+  workflows:
+    name: workflow security audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # checkout leaves the job's token in .git/config unless told not
+          # to. Nothing here needs to push, and a workspace that gets
+          # archived would carry the credential with it.
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .venv-tools
+          key: ${{ runner.os }}-tools-${{ hashFiles('Makefile') }}
+      # zizmor audits this directory's own workflows. GH_TOKEN lets it resolve
+      # action owners and catch impostor commits -- a SHA pin that points at a
+      # fork rather than at the repository the comment names.
+      - run: make audit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  binary:
+    name: single-file binary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # checkout leaves the job's token in .git/config unless told not
+          # to. Nothing here needs to push, and a workspace that gets
+          # archived would carry the credential with it.
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+
+      # ccache cuts a rebuild of unchanged C from minutes to seconds, and Nuitka
+      # generates a great deal of C that does not change between runs.
+      - name: install ccache
+        run: sudo apt-get update && sudo apt-get install -y ccache
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ccache
+          key: ${{ runner.os }}-ccache-${{ github.sha }}
+          restore-keys: ${{ runner.os }}-ccache-
+
+      - run: make binary
+
+      # Compiling successfully proves very little here. Nuitka bundles what it
+      # can see, and this package reaches every optional codec through a string
+      # passed to importlib -- so a binary missing all of them still builds,
+      # still runs, and only reports the loss through --list-formats. This is
+      # the step that reads that report and round-trips each format.
+      - run: make binary-check
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: json-dump-linux-x86_64
+          path: bin/json-dump
+          if-no-files-found: error

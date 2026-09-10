@@ -1,0 +1,41 @@
+# Build and packaging output.
+/build/
+/dist/
+/bin/
+*.egg-info/
+
+# Byte-code and caches.
+__pycache__/
+*.py[cod]
+
+# Tool virtualenvs and caches.  `make tools` creates .venv-tools; `make binary`
+# creates .venv-build.  Neither is ever committed: the Makefile pins the tool
+# versions and can rebuild both from scratch.
+# A glob rather than a list: the Makefile creates .venv-tools, .venv-build and
+# a throwaway .venv-test, and the next target to need an isolated environment
+# should not also need a .gitignore edit.
+/.venv*/
+/venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Written by `make hooks`, and machine-specific: it holds an absolute path to
+# the lefthook binary in this clone.
+/.lefthook-rc.sh
+
+# Nuitka scratch, if a build is ever pointed somewhere other than build/.
+*.build/
+*.dist/
+*.onefile-build/
+
+# Personal data, and everything build_events.py renders from it.  The exports
+# are a medical journal; they stay on the machine that made them, and git
+# history is the wrong place to learn that a file was private.
+# Anchored to the root so the contrib/ fixtures -- which are test data and are
+# committed -- keep matching their own names.
+/ggg*.json
+/ggg*.json-dump
+/fff*.jcal
+/events.md
+/events.pdf

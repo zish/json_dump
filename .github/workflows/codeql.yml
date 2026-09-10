@@ -1,0 +1,59 @@
+# CodeQL — GitHub's own semantic code scanner, which supports Python natively.
+#
+# It is kept in its own file rather than folded into ci.yml because it is not a
+# make target and cannot be: the analysis runs on GitHub's infrastructure and
+# reports into the repository's Security tab, so there is nothing meaningful to
+# run locally and nothing for a git hook to call. Everything that *can* be run
+# locally lives in the Makefile; this is the exception, and it is separate so
+# that the rule stays visible.
+#
+# What it adds over ruff's bandit rules (which ci.yml already runs) is dataflow:
+# ruff sees a dangerous call, CodeQL sees whether attacker-controlled input can
+# reach it. For a tool whose entire job is parsing untrusted files, that is the
+# more interesting question.
+
+name: CodeQL
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  schedule:
+    # Queries improve without the code changing, so a weekly re-run finds things
+    # the push-triggered run could not have.
+    - cron: "40 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: analyze python
+    runs-on: ubuntu-latest
+    permissions:
+      # Writing the results into the Security tab is the whole point; without
+      # this the analysis runs and the findings go nowhere.
+      security-events: write
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # checkout leaves the job's token in .git/config unless told not
+          # to. Nothing here needs to push, and a workspace that gets
+          # archived would carry the credential with it.
+          persist-credentials: false
+
+      - uses: github/codeql-action/init@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4
+        with:
+          languages: python
+          # security-and-quality over the default security-extended: this is a
+          # small, readable codebase where the quality queries are affordable
+          # and their findings are actionable rather than noise.
+          queries: security-and-quality
+
+      - uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4
+        with:
+          category: "/language:python"

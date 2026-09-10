@@ -1,0 +1,14 @@
+{
+  "base": "javascript",
+  "name": "kotlin",
+  "summary": "Kotlin map/list assignments: ROOT[\"key\"][0] = \"value\"",
+  "line": "%p = %v",
+  "bare": "",
+  "empty_map": "mapOf<String, Any?>()",
+  "empty_seq": "listOf<Any?>()",
+  "notes": [
+    "Inherits JSON-style quoting and the true/false/null literals from the",
+    "javascript template; only the four things Kotlin spells differently are",
+    "stated here."
+  ]
+}

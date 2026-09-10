@@ -1,0 +1,90 @@
+#compdef json-dump json_dump
+#
+# zsh completion for json-dump
+#
+# Install: place this file in a directory on $fpath (e.g.
+#   /usr/share/zsh/site-functions) as `_json-dump`, then `compinit`.
+#
+# Format candidates are read from `json-dump -L --porcelain`, so only formats
+# whose optional Python packages are installed are offered, and each carries
+# its one-line description into the completion menu.
+
+_json_dump_formats() {
+    local direction=$1 line
+    local -a out
+    json-dump -L --porcelain --direction $direction 2>/dev/null | while IFS=$'\t' read -r name dir kind ok aliases summary; do
+        [[ $ok == yes ]] || continue
+        out+=("${name}:${summary}")
+        local a
+        for a in ${(s:,:)aliases}; do
+            [[ -n $a ]] && out+=("${a}:alias for ${name}")
+        done
+    done
+    _describe -t formats 'format' out
+}
+
+_json_dump_templates() {
+    local line
+    local -a out
+    json-dump --list-templates --porcelain 2>/dev/null | while IFS=$'\t' read -r name source aliases example summary; do
+        out+=("${name}:${summary}")
+        local a
+        for a in ${(s:,:)aliases}; do
+            [[ -n $a ]] && out+=("${a}:alias for ${name}")
+        done
+    done
+    _describe -t templates 'template' out
+}
+
+_json-dump() {
+    local curcontext="$curcontext" state line
+    typeset -A opt_args
+
+    _arguments -s -S \
+        '(-i -f --input-format --from)'{-i,-f,--input-format,--from}'[format of the input]:format:->informat' \
+        '(-m --multipacket)'{-m,--multipacket}'[treat each input line as a separate document]' \
+        '(-r --reverse)'{-r,--reverse}'[process documents newest-first (implies -m)]' \
+        '--input-encoding[character encoding for text input]:encoding:(utf-8 utf-8-sig utf-16 latin-1 ascii cp1252)' \
+        '(-o -t --output-format --to)'{-o,-t,--output-format,--to}'[format to emit]:format:->outformat' \
+        '(-O --output)'{-O,--output}'[write to FILE instead of stdout]:file:_files' \
+        '--indent[indentation width for structured output]:width:' \
+        '--compact[single-line structured output]' \
+        '(-s --sort-keys)'{-s,--sort-keys}'[sort mapping keys]' \
+        '--ascii[escape non-ASCII characters]' \
+        '--null-policy[handling of null in formats that lack it]:policy:((keep\:"leave as-is" drop\:"omit the key" empty\:"write an empty string"))' \
+        '--avro-schema[Avro writer schema (JSON) instead of inference]:file:_files' \
+        '(-T --template)'{-T,--template}'[pseudocode notation, by name or template file]:template:->template' \
+        '(-e --escape-special)'{-e,--escape-special}'[escape CR, LF and TAB in leaf values]' \
+        '--perl-compat[reproduce json_dump.pl byte-for-byte]' \
+        '--root[name of the root node in dumped paths]:name:' \
+        '--no-merge[emit each document separately]' \
+        '--merge-strategy[how to combine mappings]:strategy:((deep\:"recurse, later wins at the leaves" shallow\:"later document replaces the whole value" last\:"later document wins outright" first\:"earlier document wins outright" collect\:"gather conflicting values into a list"))' \
+        '--list-merge[how to combine arrays]:strategy:((concat\:"append" union\:"append, dropping structural duplicates" replace\:"later wins" keep\:"earlier wins" index\:"merge element-wise by position"))' \
+        '(-d --dedup)'{-d,--dedup}'[drop structurally duplicate array elements]' \
+        '--wrap-key[key each document by its source]:mode:((none\:"merge instead" basename\:"file name" stem\:"file name without extension" path\:"path as given" index\:"position on the command line"))' \
+        '(-h --help)'{-h,--help}'[show help and exit]' \
+        '(-L --list-formats)'{-L,--list-formats}'[list every format and its availability]' \
+        '--help-format[explain one format in detail]:format:->anyformat' \
+        '--list-templates[list every pseudocode template]' \
+        '--help-template[explain one template, or how to write one]::template:->template' \
+        '--dump-template[print a template as JSON, ready to edit]:template:->template' \
+        '--porcelain[machine-readable --list-formats output]' \
+        '--direction[restrict --list-formats]:direction:(any in out)' \
+        '(-V --version)'{-V,--version}'[show version and exit]' \
+        '*:input file:_files'
+
+    case $state in
+        informat)
+            local -a extra=('auto:detect from extension, then content')
+            _describe -t special 'detection' extra
+            _json_dump_formats in ;;
+        outformat) _json_dump_formats out ;;
+        anyformat) _json_dump_formats any ;;
+        template)
+            # --template also accepts a path to a template file.
+            _json_dump_templates
+            _files ;;
+    esac
+}
+
+_json-dump "$@"

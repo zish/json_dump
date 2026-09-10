@@ -1,0 +1,47 @@
+# Dependabot keeps the two things this repository actually pins up to date.
+#
+# There is no third entry for the developer toolchain, and that is a real gap
+# worth naming: ruff, mypy, pip-audit, zizmor and Nuitka are pinned as variables
+# in the Makefile, which Dependabot cannot read. The trade was deliberate --
+# pinning them in pyproject.toml would put a `dev` extra into the package's
+# published metadata -- but it means those five versions are bumped by hand.
+# `make tools` after a bump reinstalls them; the stamp files handle the rest.
+
+version: 2
+updates:
+  # The actions in .github/workflows are pinned to commit SHAs, which is what
+  # makes this entry load-bearing rather than routine: a SHA never moves, so
+  # without Dependabot the workflows would keep running last year's action
+  # forever, including its unpatched bugs.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "ci"
+    # Do not open a PR for a version that was published minutes ago. Most
+    # compromised releases of a legitimate package are caught and yanked within
+    # days, and the only thing this costs is a week of not having the newest
+    # patch.
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # The optional format libraries in pyproject.toml. None of them is a required
+  # dependency, so a bump here can never break a core install -- but it can
+  # break a codec, which is what the `all` leg of the test matrix is for.
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: "deps"
+    cooldown:
+      default-days: 7
+    groups:
+      formats:
+        patterns: ["*"]

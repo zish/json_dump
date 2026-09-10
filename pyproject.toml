@@ -1,0 +1,134 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "json-dump"
+version = "0.2.0"
+description = "Flatten, convert and merge arbitrary nested data structures"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Jeremy Melanson", email = "zishmusic@gmail.com" }]
+keywords = ["json", "yaml", "toml", "msgpack", "cbor", "flatten", "gron", "merge"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Text Processing",
+    "Topic :: Utilities",
+]
+# The core -- pseudo-perl and pseudo-python dumps, JSON, JSONL, repr and
+# TOML reading -- runs on the standard library alone.
+dependencies = []
+
+[project.optional-dependencies]
+yaml = ["PyYAML>=6"]
+json5 = ["json5>=0.9"]
+toon = ["toon-format>=0.1"]
+toml = ["tomli-w>=1.0"]
+msgpack = ["msgpack>=1.0"]
+cbor = ["cbor2>=5.4"]
+bson = ["pymongo>=4.0"]
+avro = ["fastavro>=1.9"]
+nestedtext = ["nestedtext>=3.6"]
+protobuf = ["protobuf>=4.0"]
+# Everything that is stable and schemaless -- the sensible default install.
+all = [
+    "PyYAML>=6", "json5>=0.9", "toon-format>=0.1", "tomli-w>=1.0",
+    "msgpack>=1.0", "cbor2>=5.4", "nestedtext>=3.6",
+]
+# Formats with sharper edges: BSON needs pymongo, Avro needs a schema,
+# protobuf-struct coerces every number to a double.
+extras = ["pymongo>=4.0", "fastavro>=1.9", "protobuf>=4.0"]
+
+[project.scripts]
+json-dump = "json_dump.cli:entrypoint"
+
+[project.urls]
+Homepage = "https://github.com/zishmusic/json_dump"
+
+[tool.setuptools]
+packages = ["json_dump"]
+
+[tool.setuptools.data-files]
+"share/man/man1" = ["man/json-dump.1"]
+"share/bash-completion/completions" = ["contrib/completions/json-dump.bash"]
+"share/fish/vendor_completions.d" = ["contrib/completions/json-dump.fish"]
+"share/zsh/site-functions" = ["contrib/completions/_json-dump"]
+
+# ---------------------------------------------------------------------------
+# Development tooling.
+#
+# Only *configuration* lives here.  The tool versions are pinned in the Makefile
+# instead, so that nothing in this file's published metadata implies a `dev`
+# extra someone could install by accident.
+# ---------------------------------------------------------------------------
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+extend-exclude = ["build", "dist", ".venv-tools", ".venv-build", ".venv-test"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",     # pycodestyle
+    "F",          # pyflakes -- unused imports, undefined names
+    "I",          # isort -- import ordering
+    "UP",         # pyupgrade -- syntax this project's floor (3.11) allows
+    "B",          # flake8-bugbear -- mutable defaults, shadowed loop vars
+    "C4",         # flake8-comprehensions
+    "SIM",        # flake8-simplify
+    "RUF",        # ruff's own rules
+    # flake8-bandit.  This is the static security scan for the Python itself,
+    # and running it inside ruff rather than as a separate `bandit` invocation
+    # means one tool, one config, one pass -- the findings are the same ones.
+    "S",
+]
+ignore = [
+    # The codebase's whole job is turning arbitrary data into other formats, so
+    # a few of the defaults are permanently wrong here rather than occasionally:
+    "S101",   # assert -- the test suite is built out of them
+    "E501",   # line length -- ruff format owns wrapping; long URLs in comments stay
+]
+
+[tool.ruff.lint.per-file-ignores]
+# ast.literal_eval is the *point* of the repr codec, and subprocess with a
+# fixed argv is the point of the binary check. Both are flagged by the bandit
+# rules as a category, and both are correct here.
+"json_dump/codecs.py" = ["S307"]
+"scripts/check_binary.py" = ["S603"]
+# Every script in scripts/ has to put the repo root on sys.path before it can
+# import json_dump, because they are run from a checkout rather than from an
+# installed package. That is an import after a statement, by construction.
+"scripts/*" = ["E402"]
+"tests/*" = ["S", "E402"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["json_dump"]
+
+[tool.mypy]
+python_version = "3.11"
+files = ["json_dump", "scripts"]
+# Not strict, deliberately.  The codecs take `Any` in and give `Any` back --
+# that is what "arbitrary nested data" means -- so demanding annotated
+# signatures everywhere would produce noise rather than safety.  What is worth
+# catching is the mistake that actually happens in this codebase: a registry
+# field or Format attribute referenced under a name that no longer exists.
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+no_implicit_optional = true
+check_untyped_defs = true
+
+[[tool.mypy.overrides]]
+# Only protobuf needs an entry, and the reason the list is this short is the
+# interesting part: every other optional dependency is reached through a string
+# passed to importlib, which mypy cannot see and therefore never complains
+# about. protobuf is the one exception -- codecs.py does a real `from
+# google.protobuf import struct_pb2, json_format` once _require has confirmed
+# the package is there.
+module = ["google.protobuf.*"]
+ignore_missing_imports = true

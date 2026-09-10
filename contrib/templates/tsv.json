@@ -1,0 +1,17 @@
+{
+  "name": "tsv",
+  "summary": "Tab-separated path and value, for cut(1) and awk(1)",
+  "root": "",
+  "key": "%r",
+  "index": "%s",
+  "join": ".",
+  "line": "%p\t%v",
+  "quote": "raw",
+  "key_quote": "raw",
+  "null": "",
+  "notes": [
+    "Written from scratch rather than with \"base\", because nothing built in",
+    "is close: no quoting, no root, and the separator carries the structure.",
+    "Pair it with -e so a value containing a newline cannot forge a row."
+  ]
+}

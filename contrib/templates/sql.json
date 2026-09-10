@@ -1,0 +1,28 @@
+{
+  "name": "sql",
+  "summary": "One INSERT per leaf, into a (path, value) table",
+  "root": "",
+  "path": "'%c'",
+  "key": "%r",
+  "index": "%s",
+  "join": ".",
+  "line": "INSERT INTO leaf (path, value) VALUES (%p, %v);",
+  "header": [
+    "CREATE TABLE IF NOT EXISTS leaf (path TEXT PRIMARY KEY, value TEXT);",
+    "BEGIN;"
+  ],
+  "quote": "sql",
+  "key_quote": "raw",
+  "null": "NULL",
+  "true": "'true'",
+  "false": "'false'",
+  "empty_map": "'{}'",
+  "empty_seq": "'[]'",
+  "notes": [
+    "Shows the three fields that make a template stop looking like an",
+    "assignment: header, a path with punctuation of its own, and a line that",
+    "is a whole statement.",
+    "There is no trailing COMMIT: header runs before the first leaf and",
+    "nothing runs after the last one. Append it in the shell."
+  ]
+}
