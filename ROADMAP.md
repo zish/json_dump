@@ -315,22 +315,20 @@ purpose. `ruff format` reaches Python inside Markdown fences, and on its first
 run it flattened this very illustration, leaving a before/after pair whose two
 halves were identical.
 
-**What is still open.** Formatting the tree and *enforcing* the formatter are
-separate decisions, and only the first has been made. Two of the three edits
-named in the original ratchet remain:
+**Enforcement.** Closed immediately after, as a separate decision. Applying a
+formatter and enforcing one are not the same choice, and a tree that is
+formatted but unenforced drifts back a file at a time -- each of those files
+eventually being its own small version of the diff this section spent so long
+avoiding. All three edits named in the original ratchet are now made:
 
-- `.github/workflows/ci.yml` still runs its `format` step with
-  `continue-on-error: true`, so CI reports drift without failing on it.
-- The Makefile's `check` and `precommit` target lists still omit `fmt-check`,
-  so neither `make check` nor the fast gate will catch a file drifting back.
+- `.github/workflows/ci.yml` runs `make fmt-check` as an ordinary step, with no
+  `continue-on-error`.
+- The Makefile's `check` and `precommit` lists both begin with `fmt-check`.
+- `lefthook.yml` already blocked on it. Being the lone outlier is what forced
+  the decision; it is now simply consistent with everything else.
 
-`lefthook.yml` is the one place that already blocks on `make fmt-check`, and
-being the outlier is what forced this decision rather than the other two. Until
-the CI and Makefile edits are made, the tree is formatted but only the
-pre-commit hook keeps it that way.
-
-**If the answer to enforcement is no.** `ruff format` is not mandatory. Backing
-it out means deleting the `fmt`/`fmt-check` targets, that CI step, and the
-lefthook job, and keeping `ruff check` — which is where the actual findings
-come from — on its own. The formatter and the linter are independent tools that
-happen to ship in one binary.
+**If the answer to enforcement ever changes.** `ruff format` is not mandatory.
+Backing it out means deleting the `fmt`/`fmt-check` targets, the CI step, the
+lefthook job and the two list entries, and keeping `ruff check` -- which is
+where the actual findings come from -- on its own. The formatter and the linter
+are independent tools that happen to ship in one binary.

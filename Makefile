@@ -28,6 +28,7 @@ PIP_AUDIT_VERSION ?= 2.10.1
 ZIZMOR_VERSION    ?= 1.30.1
 LEFTHOOK_VERSION  ?= 2.1.12
 BUILD_VERSION     ?= 1.6.0
+UV_VERSION        ?= 0.12.12
 
 # Nuitka is pinned here too, but note what is *absent*: no target below depends
 # on it except `binary`. `make tools` does not install it, `make check` does not
@@ -87,7 +88,13 @@ BUILD_ENV := $(CURDIR)/.venv-build
 # installs) makes `python3 -m venv` fail outright. Neither path is required —
 # whichever runs, the result is the same layout at $(1)/bin/, so every target
 # below is written against that and does not care which one made it.
-UV ?= $(shell command -v uv 2>/dev/null)
+# The second branch is this checkout's own pinned copy, put in .venv-tools by
+# the uv tool rule below. Both branches are deliberately expanded at *use*
+# rather than snapshotted with `:=`: a target that installs uv as a prerequisite
+# has to be able to find it in the same run, and a parse-time snapshot is taken
+# before that install has happened.
+UV ?= $(shell command -v uv 2>/dev/null || \
+        { [ -x "$(TOOLS_ENV)/bin/uv" ] && printf '%s\n' "$(TOOLS_ENV)/bin/uv"; })
 
 define mkvenv
 	@if [ ! -x "$(1)/bin/python" ]; then \
@@ -138,6 +145,7 @@ $(eval $(call tool_rule,pip-audit,$(PIP_AUDIT_VERSION),pip-audit))
 $(eval $(call tool_rule,zizmor,$(ZIZMOR_VERSION),zizmor))
 $(eval $(call tool_rule,lefthook,$(LEFTHOOK_VERSION),lefthook))
 $(eval $(call tool_rule,build,$(BUILD_VERSION),build))
+$(eval $(call tool_rule,uv,$(UV_VERSION),uv))
 
 NEED_RUFF      := $(TOOLS_ENV)/.stamp-ruff-$(RUFF_VERSION)
 NEED_MYPY      := $(TOOLS_ENV)/.stamp-mypy-$(MYPY_VERSION)
@@ -145,6 +153,7 @@ NEED_PIP_AUDIT := $(TOOLS_ENV)/.stamp-pip-audit-$(PIP_AUDIT_VERSION)
 NEED_ZIZMOR    := $(TOOLS_ENV)/.stamp-zizmor-$(ZIZMOR_VERSION)
 NEED_LEFTHOOK  := $(TOOLS_ENV)/.stamp-lefthook-$(LEFTHOOK_VERSION)
 NEED_BUILD     := $(TOOLS_ENV)/.stamp-build-$(BUILD_VERSION)
+NEED_UV        := $(TOOLS_ENV)/.stamp-uv-$(UV_VERSION)
 
 .DEFAULT_GOAL := help
 
@@ -246,11 +255,23 @@ test:
 # and only break for the person who ran `pip install json-dump` with no extras.
 #
 # EXTRAS= (empty) is that person's environment, reproduced exactly.
+# `python3 -m venv` bootstraps pip through ensurepip, which distro-split and
+# container Pythons routinely omit -- and then this target, alone among all of
+# them, cannot build the environment it exists to build. Where neither ensurepip
+# nor a system uv is present, this checkout's pinned uv stops being a speed-up
+# and becomes the only way the target can run, so it becomes a prerequisite.
+#
+# Both probes are `:=` so they run once per make invocation rather than once per
+# reference; unlike $(UV) above, nothing installs an answer to them mid-run.
+HAVE_ENSUREPIP  := $(shell $(PY) -c 'import ensurepip' 2>/dev/null && echo 1)
+HAVE_SYSTEM_UV  := $(shell command -v uv 2>/dev/null)
+NEED_VENV_MAKER := $(if $(or $(HAVE_ENSUREPIP),$(HAVE_SYSTEM_UV)),,$(NEED_UV))
+
 #> make test-isolated                    # prove the core still runs with zero deps
 #> make test-isolated TEST_EXTRAS=all    # ...and again with every optional format
 ## test-isolated: run the suite in a fresh venv holding only TEST_EXTRAS (default: none)
 .PHONY: test-isolated
-test-isolated:
+test-isolated: $(NEED_VENV_MAKER)
 	@rm -rf $(CURDIR)/.venv-test
 	$(call mkvenv,$(CURDIR)/.venv-test)
 	$(call venv_install,$(CURDIR)/.venv-test,$(if $(TEST_EXTRAS),'.[$(TEST_EXTRAS)]','.'))
@@ -445,22 +466,24 @@ uninstall:
 
 # ----------------------------------------------------------------- aggregates
 
-# fmt-check is missing from both lists on purpose, and it is the only gate that
-# is. The tree is hand-aligned rather than ruff-formatted, and adopting the
-# formatter is a ~700-line diff across nearly every file -- a decision that is
-# recorded, with the reasoning and the three edits that reverse it, in
-# ROADMAP.md §6. CI still runs it on every push as a non-blocking step, so the
-# debt is reported continuously rather than forgotten. Everything else here is
-# enforced and passes on the whole tree.
+# Every gate in both lists is enforced. fmt-check used to be the one exception;
+# the tree was formatted in the initial commit and the exception closed with it,
+# which ROADMAP.md §6 records in full.
+#
+# test-isolated is in `check` but not in `precommit`, and that split is the
+# point of having two lists: it builds a virtualenv and installs the package
+# into it, which is seconds rather than the milliseconds every other fast-gate
+# entry costs. A pre-commit hook that is slow enough to resent is a hook that
+# gets bypassed with --no-verify, and then none of these run.
 #> make precommit                   # the fast gate, before committing
-#> make fmt-check                   # the one deferred gate — see ROADMAP.md §6
+#> make check                       # every gate CI enforces
 ## check: everything CI enforces, in CI's order
 .PHONY: check
-check: lint typecheck core-check completions-check test vuln audit
+check: fmt-check lint typecheck core-check completions-check test test-isolated vuln audit
 
 ## precommit: the fast gate the pre-commit hook runs
 .PHONY: precommit
-precommit: lint core-check test
+precommit: fmt-check lint core-check test
 
 # --------------------------------------------------------------------- tools
 

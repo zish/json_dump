@@ -60,13 +60,12 @@ jobs:
           path: .venv-tools
           key: ${{ runner.os }}-tools-${{ hashFiles('Makefile') }}
 
-      # Reported, not enforced. The tree is hand-aligned rather than
-      # ruff-formatted; the decision and the three edits that reverse it are
-      # in ROADMAP.md §6. Running it here anyway means the size of the debt
-      # shows up in every CI log instead of in a comment nobody re-reads.
-      - name: format (advisory — see ROADMAP.md §6)
-        run: make fmt-check
-        continue-on-error: true
+      # Enforced, like every other gate here. This step was advisory for as long
+      # as the tree was hand-aligned rather than ruff-formatted; the tree was
+      # formatted in the initial commit and ROADMAP.md §6 records both halves of
+      # that -- applying the formatter, and then enforcing it, which are separate
+      # decisions and were taken separately.
+      - run: make fmt-check
 
       - run: make lint
       - run: make typecheck
@@ -135,6 +134,30 @@ jobs:
         run: perl -v | head -2
 
       - run: make test
+
+  # `make test-isolated` builds a virtualenv, installs the package into it from
+  # source and runs the suite there. The test matrix's `core` leg already covers
+  # a dependency-free *install*, so what this adds is the target's own machinery
+  # -- and that is worth a job, because nothing in CI ran this target for its
+  # whole life and it had quietly stopped working: on any Python without
+  # ensurepip it could not create its virtualenv at all.
+  isolated:
+    name: zero-dependency venv
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # checkout leaves the job's token in .git/config unless told not
+          # to. Nothing here needs to push, and a workspace that gets
+          # archived would carry the credential with it.
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+
+      # Nothing is pip-installed here on purpose: the target has to build its
+      # own environment, and a pre-installed one would hide it failing to.
+      - run: make test-isolated
 
   vuln:
     name: dependency vulnerabilities
