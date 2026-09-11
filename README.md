@@ -239,6 +239,15 @@ $ make precommit         # format, lint, the dependency-free check, tests
 $ make check             # everything CI runs, in CI's order
 ```
 
+Those targets build throwaway virtualenvs: one for the pinned linters, and one
+per run of `make test-isolated`, which is what proves the package still works
+installed with no extras at all. Building them needs a `python3` whose `venv`
+module can bootstrap pip. Several distributions ship that separately
+(`python3-venv` on Debian and Ubuntu, `python3-pip` on Fedora), so a minimal
+container image usually has to install it before `make check` will run.
+[uv](https://docs.astral.sh/uv/) covers the same need without it, and `make`
+prefers uv whenever it is on `PATH`.
+
 CI runs the tests on Python 3.11 through 3.14, in two installations each:
 with every extra, and with **none** — the second being the one that catches an
 optional import escaping to module scope, which works fine on every machine
