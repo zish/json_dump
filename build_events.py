@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright 2026 Jeremy Melanson
+# SPDX-License-Identifier: Apache-2.0
+
 """Merge the `events` arrays of ggg1.json + ggg2.json into a sorted markdown
 file and/or a paginated PDF.
 

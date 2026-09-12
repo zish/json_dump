@@ -1,3 +1,6 @@
+# Copyright 2026 Jeremy Melanson
+# SPDX-License-Identifier: Apache-2.0
+
 """Concrete read/write implementations for every format in the registry.
 
 Each codec is a small class with ``load_all(raw, ctx) -> list[Any]`` and

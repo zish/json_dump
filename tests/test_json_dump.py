@@ -1,3 +1,6 @@
+# Copyright 2026 Jeremy Melanson
+# SPDX-License-Identifier: Apache-2.0
+
 """Test suite for json_dump.
 
 Runs with plain `python3 -m unittest` -- no pytest required, so it works in

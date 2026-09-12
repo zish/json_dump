@@ -1,3 +1,6 @@
+# Copyright 2026 Jeremy Melanson
+# SPDX-License-Identifier: Apache-2.0
+
 """Depth-first flattening of nested data into one line per leaf.
 
 One traversal (:func:`walk_iter`) feeds one renderer

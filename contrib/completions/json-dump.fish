@@ -1,3 +1,6 @@
+# Copyright 2026 Jeremy Melanson
+# SPDX-License-Identifier: Apache-2.0
+
 # fish completion for json-dump
 #
 # Format lists come from `json-dump -L --porcelain`, filtered to formats whose

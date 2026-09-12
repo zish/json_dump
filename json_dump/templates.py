@@ -1,3 +1,6 @@
+# Copyright 2026 Jeremy Melanson
+# SPDX-License-Identifier: Apache-2.0
+
 """Pseudocode templates -- the language-shaped notations the path dump can emit.
 
 A template is *data*, not code: a dozen small strings describing how one leaf

@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright 2026 Jeremy Melanson
+# SPDX-License-Identifier: Apache-2.0
+
 """Emit the ``--include-*`` flags a Nuitka build needs for the optional formats.
 
 Nuitka decides what to bundle by *reading import statements*.  json_dump has

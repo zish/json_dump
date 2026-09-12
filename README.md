@@ -1,6 +1,8 @@
 # json-dump
 
-Flatten, convert and merge arbitrary nested data structures.
+Make nested data greppable. Every line is one value and the complete path to
+it, so a service configuration, an API response or a wall of log records
+becomes something `grep`, `less`, `cut` and `awk` already know what to do with.
 
 ```console
 $ json-dump config.json
@@ -10,23 +12,32 @@ ROOT.{configurePresets}.0.{hidden}.true
 ROOT.{configurePresets}.0.{cacheVariables}.{CMAKE_BUILD_TYPE}."Release"
 ```
 
-Every line is the complete path to one leaf, which turns a JSON document into
-something `grep`, `less`, `cut` and `awk` already know what to do with. That
-matters most in the case they otherwise handle worst: a document that arrives
-as one enormous line with no newlines in it, where `grep` matches the whole
-file and a pager shows you a wall.
+That matters most in the case those tools otherwise handle worst: a document
+that arrives as one enormous line with no newlines in it, where `grep` matches
+the whole file and a pager shows you a wall.
 
 ```console
 $ grep name minified.json | wc -l          # 1 — the whole document matched
 $ json-dump minified.json | grep name      # one line per hit, with its path
 ```
 
+It is built for the question that comes up in front of a machine that is
+misbehaving: what is actually in this file, where does that setting live, and
+which of these hosts disagrees with the others. Answering it needs no query
+language, no editor and no scripting — only the filters already in your
+fingers — and the program itself needs nothing but Python.
+
+Two further modes share the same reader. One converts between serialisation
+formats, so a file in something nothing local can open becomes one that
+everything can. The other merges several documents into a single structure,
+which is how a base configuration and its per-host overrides get compared or
+combined.
+
 This is a different job from [jq](https://jqlang.github.io/jq/), and the two
 get along. jq is the tool for real queries, joins and transformations, at the
 price of a filter language you have to know well enough to write under time
-pressure. json-dump is for the other half: finding where a value lives, seeing
-the shape of a document you have never opened, or grepping a directory of them
-with the tools already in your fingers.
+pressure. json-dump is for the other half: finding where a value lives, reading
+the shape of a document you have never opened, or grepping a directory of them.
 
 ## Install
 
@@ -254,3 +265,15 @@ optional import escaping to module scope, which works fine on every machine
 that has the package. Security coverage is ruff's bandit rules and CodeQL over
 the source, `pip-audit` over the optional dependency set, and `zizmor` over the
 workflows themselves. See [SECURITY.md](SECURITY.md) for the threat model.
+
+## License
+
+Copyright 2026 Jeremy Melanson.
+
+Licensed under the [Apache License, Version 2.0](LICENSE). You may not use this
+software except in compliance with the License. Unless required by applicable
+law or agreed to in writing, it is distributed on an "AS IS" BASIS, WITHOUT
+WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+
+`json_dump.pl`, the Perl script this tool descends from, is covered by the same
+terms.

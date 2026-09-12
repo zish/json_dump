@@ -241,8 +241,9 @@ Nuitka is AGPLv3, which surprises people, so it is worth stating plainly: the
 compiled program is **not** encumbered by it. Nuitka carries a runtime-library
 exception in the manner of GCC's, granting permission to "propagate a work of
 Target Code ... under terms of your choice". A binary built from this
-MIT-licensed tree stays MIT. What the AGPL does cover is Nuitka itself —
-modifying the compiler and distributing that is the part with obligations.
+Apache-2.0-licensed tree stays Apache 2.0. What the AGPL does cover is Nuitka
+itself — modifying the compiler and distributing that is the part with
+obligations.
 
 ### If the build fails
 

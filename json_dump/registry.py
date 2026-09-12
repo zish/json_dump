@@ -1,3 +1,6 @@
+# Copyright 2026 Jeremy Melanson
+# SPDX-License-Identifier: Apache-2.0
+
 """Declarative catalogue of every input/output format json_dump knows about.
 
 Formats are *declared* here and *implemented* in :mod:`json_dump.codecs`.

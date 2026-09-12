@@ -1,3 +1,6 @@
+# Copyright 2026 Jeremy Melanson
+# SPDX-License-Identifier: Apache-2.0
+
 """Command-line interface for json_dump."""
 
 from __future__ import annotations
@@ -472,11 +475,13 @@ def build_parser() -> argparse.ArgumentParser:
         prog=PROG,
         formatter_class=_Formatter,
         description=(
-            "Flatten, convert and merge arbitrary nested data structures.\n"
-            "With no options, prints one line per leaf -- the full path to "
-            "that leaf --\n"
-            "so grep, less, cut and awk can read a document that has no "
-            "newlines of its own."
+            "Make nested data greppable: every value on its own line, with "
+            "the full path\n"
+            "to it -- so grep, less, cut and awk can read a config file, an "
+            "API response\n"
+            "or a wall of log records, including one that arrives as a single "
+            "enormous\n"
+            "line with no newlines of its own."
         ),
         epilog="\n".join(epilog),
         add_help=False,

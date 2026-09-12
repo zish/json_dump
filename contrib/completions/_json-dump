@@ -1,5 +1,8 @@
 #compdef json-dump json_dump
 #
+# Copyright 2026 Jeremy Melanson
+# SPDX-License-Identifier: Apache-2.0
+#
 # zsh completion for json-dump
 #
 # Install: place this file in a directory on $fpath (e.g.

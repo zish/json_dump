@@ -326,8 +326,9 @@ dist: $(NEED_BUILD)
 # AGPLv3, but it carries a runtime-library exception (LICENSE-RUNTIME.txt) in
 # the manner of GCC's: the permission is explicitly to "propagate a work of
 # Target Code ... under terms of your choice". The compiler's copyleft does not
-# reach the compiled program, so a binary built from this MIT-licensed tree can
-# stay MIT. Modifying and redistributing Nuitka is the part that does not.
+# reach the compiled program, so a binary built from this Apache-2.0 tree can
+# stay Apache-2.0. Modifying and redistributing Nuitka is the part that does
+# not.
 
 BUILD_STAMP := $(BUILD_ENV)/.stamp-$(NUITKA_VERSION)-$(if $(EXTRAS),$(EXTRAS),core)
 
@@ -393,7 +394,7 @@ NUITKA_FLAGS = \
 	--company-name='Jeremy Melanson' \
 	--product-name=json-dump \
 	--product-version=$(VERSION) \
-	--file-description='Flatten, convert and merge nested data structures'
+	--file-description='Make nested data greppable, one value per line'
 
 #> make binary                      # single file with every stable format in it
 #> make binary EXTRAS=              # ...core formats only, no third-party code

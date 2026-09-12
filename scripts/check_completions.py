@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright 2026 Jeremy Melanson
+# SPDX-License-Identifier: Apache-2.0
+
 """Fail if a CLI option is missing from one of the shell completion scripts.
 
 The completions do not need checking for *format* names: all three query the

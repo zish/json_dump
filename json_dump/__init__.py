@@ -1,7 +1,11 @@
-"""json_dump -- flatten, convert and merge arbitrary nested data structures.
+# Copyright 2026 Jeremy Melanson
+# SPDX-License-Identifier: Apache-2.0
 
-One line per leaf, so a document becomes something grep, less, cut and awk
-can read -- including a minified one with no newlines in it at all.  The
+"""json_dump -- make nested data greppable, one value per line.
+
+Every line is one value and the full path to it, so a config file, an API
+response or a log record becomes something grep, less, cut and awk already
+know how to read -- including a minified one with no newlines in it at all.  The
 default notation and ``--perl-compat`` come from the Perl script this package
 grew out of; the rest of the catalogue (python, javascript, go, r, jq, and any
 a user writes) lives in :mod:`json_dump.templates`, and a pluggable set of

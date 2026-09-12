@@ -1,3 +1,6 @@
+# Copyright 2026 Jeremy Melanson
+# SPDX-License-Identifier: Apache-2.0
+
 # bash completion for json-dump
 #
 # Format names are queried from the binary itself

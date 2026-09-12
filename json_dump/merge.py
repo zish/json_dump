@@ -1,3 +1,6 @@
+# Copyright 2026 Jeremy Melanson
+# SPDX-License-Identifier: Apache-2.0
+
 """Merging and deduplication of multiple input documents.
 
 Two independent knobs:

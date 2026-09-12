@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Copyright 2026 Jeremy Melanson
+# SPDX-License-Identifier: Apache-2.0
+
 """Assert that importing json_dump pulls in nothing outside the standard library.
 
 This is the executable form of the first invariant in CLAUDE.md: `pip install

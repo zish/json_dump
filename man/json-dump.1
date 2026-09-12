@@ -1,9 +1,11 @@
 .\" Manpage for json-dump.
 .\" Author: Jeremy Melanson
+.\" Copyright 2026 Jeremy Melanson
+.\" SPDX-License-Identifier: Apache-2.0
 .TH JSON\-DUMP 1 "2026-08-20" "json-dump 0.2.0" "User Commands"
 .
 .SH NAME
-json\-dump \- flatten, convert and merge arbitrary nested data structures
+json\-dump \- make nested data greppable, one value per line
 .
 .SH SYNOPSIS
 .B json\-dump
@@ -12,25 +14,41 @@ json\-dump \- flatten, convert and merge arbitrary nested data structures
 .
 .SH DESCRIPTION
 .B json\-dump
-reads one or more nested data structures, optionally merges and deduplicates
-them, and writes the result in a chosen format.
-.PP
-With no options it prints one line per leaf value, each line being the full
-path to that leaf in a pseudo\-perl notation.  One leaf per line is what makes
-a document tractable to
+prints one line for every value in a nested data file, and each line is the
+complete path to that value.  A service configuration, an API response, a
+cloud CLI dump or a stream of log records becomes something
 .BR grep (1),
 .BR less (1),
 .BR cut (1)
 and
-.BR awk (1),
-including the case those handle worst: a document that arrives as a single
-line with no newlines in it, where a match is the whole file.
+.BR awk (1)
+already know how to read \(em including the case those handle worst: a
+document that arrives as one enormous line with no newlines in it, where a
+match is the whole file and a pager shows a wall of text.
 .PP
-Its second mode converts between serialisation formats.  Support for each
-format depends on optional Python packages; formats whose dependencies are
-absent are hidden from
+The question it answers is the one that comes up in front of a machine that is
+misbehaving: what is actually in this file, where does that setting live, and
+which of these hosts disagrees with the others.  Answering it needs no query
+language, no editor and no scripting \(em only the filters already to hand.
+By default the path is written in a pseudo\-perl notation; fifteen others,
+including valid Python, Go, jq and JSON Pointer, are selectable with
+.BR \-\-template .
+.PP
+Two further modes share the same reader.  One converts between serialisation
+formats \(em JSON, YAML, TOML, MessagePack, CBOR and the rest \(em so a file
+in a format nothing local can open becomes one that everything can.  The other
+merges several documents into a single structure, which is how a base
+configuration and its per\-host overrides are compared or combined.  See the
+.B Merging
+options under
+.B OPTIONS
+below.
+.PP
+Support for each format depends on optional Python packages; formats whose
+dependencies are absent are hidden from
 .B \-\-help
-and replaced by a one\-line notice describing how to enable them.  See
+and replaced by a one\-line notice describing how to enable them.  The program
+itself, and every path notation in it, needs nothing but Python.  See
 .B FORMATS
 below and
 .BR "json\-dump \-\-list\-formats" .
@@ -817,6 +835,20 @@ publication to document databases.
 .
 .SH AUTHOR
 Jeremy Melanson.
+.
+.SH COPYRIGHT
+Copyright \(co 2026 Jeremy Melanson.
+.PP
+Licensed under the Apache License, Version 2.0.  A copy accompanies the source
+distribution as
+.IR LICENSE ,
+and is also at
+.RS 4
+.I https://www.apache.org/licenses/LICENSE\-2.0
+.RE
+.PP
+This program is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+CONDITIONS OF ANY KIND, either express or implied.
 .
 .SH HISTORY
 .B json\-dump
