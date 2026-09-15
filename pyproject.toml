@@ -10,7 +10,10 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
-authors = [{ name = "Jeremy Melanson", email = "zishmusic@gmail.com" }]
+authors = [
+    { name = "Jeremy Melanson", email = "1080872+zish@users.noreply.github.com" },
+    { name = "Claude Code", email = "noreply@anthropic.com" },
+]
 keywords = [
     "json", "yaml", "toml", "msgpack", "cbor", "jsonl",
     "grep", "flatten", "gron", "merge",
@@ -56,7 +59,9 @@ extras = ["pymongo>=4.0", "fastavro>=1.9", "protobuf>=4.0"]
 json-dump = "json_dump.cli:entrypoint"
 
 [project.urls]
-Homepage = "https://github.com/zishmusic/json_dump"
+Homepage = "https://github.com/zish/json_dump"
+Source = "https://github.com/zish/json_dump"
+Issues = "https://github.com/zish/json_dump/issues"
 
 [tool.setuptools]
 packages = ["json_dump"]

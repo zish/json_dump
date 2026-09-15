@@ -219,6 +219,7 @@ meanings.
 - [ROADMAP.md](ROADMAP.md) — planned work: SQL-style filtering, an
   interactive shell, out-of-core storage for structures larger than RAM,
   Ibis integration, and publication to document stores.
+- [AUTHORS.md](AUTHORS.md) — who wrote it
 
 ## Shell completion
 

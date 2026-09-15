@@ -125,7 +125,7 @@ round-trip caveats, whether or not it is installed.
 ## Install from source
 
 ```console
-$ git clone https://github.com/zishmusic/json_dump.git
+$ git clone https://github.com/zish/json_dump.git
 $ cd json_dump
 $ pip install '.[all]'
 ```
@@ -149,7 +149,7 @@ skips itself otherwise. The Perl script needs no CPAN modules — `JSON::PP`,
 Because the core is pure standard library, a checkout is already runnable:
 
 ```console
-$ git clone https://github.com/zishmusic/json_dump.git
+$ git clone https://github.com/zish/json_dump.git
 $ cd json_dump
 $ python3 -m json_dump config.json
 ```
