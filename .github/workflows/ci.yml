@@ -76,7 +76,7 @@ jobs:
       # the tree and not a failing behaviour.
       - run: make completions-check
 
-      # The last line of defence for the internal/external documentation split.
+      # The last line of defence for everything that must not be published.
       # The pre-commit and pre-push hooks catch this first, but hooks are opt-in
       # -- a fresh clone has none until `make hooks` is run, and `--no-verify`
       # skips the ones that are installed. Reads the index, so the default

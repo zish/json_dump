@@ -42,7 +42,7 @@ pre-commit:
     # a commit it is in the history, and deleting it later does not take it out
     # -- the fix stops being a commit and becomes a rewrite. Also runs at push,
     # below, because this one is worth catching twice.
-    - name: internal docs stay unpublished
+    - name: nothing private reaches the public tree
       run: make docs-check
 
 pre-push:
@@ -52,7 +52,7 @@ pre-push:
     # whose failure is irreversible. Everything else in this file can be fixed
     # with another commit; a published internal doc can only be unpublished by
     # rewriting history that other people may already have fetched.
-    - name: internal docs stay unpublished
+    - name: nothing private reaches the public tree
       run: make docs-check
 
     - name: types

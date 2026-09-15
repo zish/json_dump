@@ -32,6 +32,43 @@ __pycache__/
 /CLAUDE.md
 /.claude/
 
+# The same rule for everyone else's assistant. Not every contributor uses the
+# same tool, and each invents its own dotfile; these are ignored so they never
+# even show up as untracked noise. `make docs-check` is the backstop that
+# actually enforces it -- ignoring a path does nothing once it is tracked.
+#
+# Several of these are worse than private notes. .mcp.json holds server
+# definitions whose env blocks carry API tokens, .continue/config.json and
+# .aider.conf.yml can hold model keys, and .aider.chat.history.md is a verbatim
+# transcript of whatever was discussed.
+/AGENTS.md
+/GEMINI.md
+/.codex/
+/.mcp.json
+/.cursorrules
+/.cursor/
+/.gemini/
+/.windsurfrules
+/.windsurf/
+/.clinerules
+/.roo/
+/.roorules
+/.roomodes
+/.continue/
+/.continuerc.json
+/.aider*
+/.amazonq/
+/.junie/
+/.augment/
+/.augment-guidelines
+/.kilocode/
+/.openhands/
+/.sourcegraph/
+/.ai/
+/.github/copilot-instructions.md
+/.github/instructions/
+/.github/prompts/
+
 # Written by `make hooks`, and machine-specific: it holds an absolute path to
 # the lefthook binary in this clone.
 /.lefthook-rc.sh

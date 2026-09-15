@@ -283,12 +283,18 @@ core-check:
 completions-check:
 	$(PY) scripts/check_completions.py
 
-# This repository is public; the internal documentation is not. .gitignore is
+# This repository is public; the internal documentation is not, and neither is
+# whatever assistant the next contributor brings with them. .gitignore is
 # necessary and nowhere near sufficient -- it says nothing about a path that is
 # already tracked, and `git add -f` overrides it silently. Both failures are
 # invisible in a diff and permanent once pushed, because deleting a file does
 # not remove it from the commits that carried it.
-## docs-check: fail if internal docs are tracked, or referenced from published files
+#
+# The named tool list is a deny-list and will always be behind the tools, so the
+# guarantee does not rest on it: every top-level entry is enumerated, and an
+# unrecognised one fails. Assistant config lands at the root, which is how that
+# catches tools nobody has heard of yet. The names only make the error better.
+## docs-check: fail if internal docs or agent tooling reach the published tree
 .PHONY: docs-check
 docs-check:
 	$(PY) scripts/check_docs.py
