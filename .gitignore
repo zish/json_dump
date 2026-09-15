@@ -20,6 +20,18 @@ __pycache__/
 .ruff_cache/
 .pytest_cache/
 
+# Internal documentation: kept on the developer's machine, never published.
+# CLAUDE.md and .claude/ are written for people working *on* json-dump, and this
+# repository is the public one. `make docs-check` fails if either is ever
+# staged, because .gitignore alone does not stop `git add -f` and does nothing
+# about a path that is already tracked.
+#
+# The whole of .claude/ rather than named files inside it: settings.local.json
+# accumulates absolute paths to unrelated checkouts on this disk, and the next
+# thing the tool writes there should not need a .gitignore edit to stay private.
+/CLAUDE.md
+/.claude/
+
 # Written by `make hooks`, and machine-specific: it holds an absolute path to
 # the lefthook binary in this clone.
 /.lefthook-rc.sh

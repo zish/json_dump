@@ -4,7 +4,7 @@
 
 """Assert that importing json_dump pulls in nothing outside the standard library.
 
-This is the executable form of the first invariant in CLAUDE.md: `pip install
+This is the executable form of the project's first invariant: `pip install
 json-dump` with no extras has to give working perl/python/json/jsonl/repr output
 and TOML input.  That holds only while every optional dependency stays behind a
 lazy import, and a violation is close to invisible during development -- a

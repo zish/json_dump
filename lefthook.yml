@@ -38,9 +38,23 @@ pre-commit:
     - name: core is dependency-free
       run: make core-check
 
+    # The commit is the moment this has to be caught. Once an internal doc is in
+    # a commit it is in the history, and deleting it later does not take it out
+    # -- the fix stops being a commit and becomes a rewrite. Also runs at push,
+    # below, because this one is worth catching twice.
+    - name: internal docs stay unpublished
+      run: make docs-check
+
 pre-push:
   parallel: false
   jobs:
+    # First, and duplicated from pre-commit, because it is the only gate here
+    # whose failure is irreversible. Everything else in this file can be fixed
+    # with another commit; a published internal doc can only be unpublished by
+    # rewriting history that other people may already have fetched.
+    - name: internal docs stay unpublished
+      run: make docs-check
+
     - name: types
       run: make typecheck
 

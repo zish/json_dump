@@ -15,9 +15,9 @@ as ``yaml: unavailable`` from a binary that was built on a machine where PyYAML
 was installed.
 
 This closes that gap without introducing a second list to keep in sync.  It
-reads the same ``registry.FORMATS`` catalogue the CLI reads, so the invariant in
-CLAUDE.md -- adding a format means touching registry.py and codecs.py, nothing
-else -- still holds: a new ``Format(...)`` entry is picked up here for free.
+reads the same ``registry.FORMATS`` catalogue the CLI reads, so the rule that
+adding a format means touching registry.py and codecs.py and nothing else still
+holds: a new ``Format(...)`` entry is picked up here for free.
 
 Only modules that are importable *at build time* are emitted, which makes the
 build environment the thing that selects the binary's feature set:

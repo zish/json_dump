@@ -76,6 +76,13 @@ jobs:
       # the tree and not a failing behaviour.
       - run: make completions-check
 
+      # The last line of defence for the internal/external documentation split.
+      # The pre-commit and pre-push hooks catch this first, but hooks are opt-in
+      # -- a fresh clone has none until `make hooks` is run, and `--no-verify`
+      # skips the ones that are installed. Reads the index, so the default
+      # shallow checkout is enough.
+      - run: make docs-check
+
   test:
     name: test (${{ matrix.python }}, ${{ matrix.deps }})
     runs-on: ubuntu-latest

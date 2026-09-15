@@ -109,10 +109,11 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 # ast.literal_eval is the *point* of the repr codec, and subprocess with a
-# fixed argv is the point of the binary check. Both are flagged by the bandit
-# rules as a category, and both are correct here.
+# fixed argv is the point of the binary and docs checks. Both are flagged by
+# the bandit rules as a category, and both are correct here.
 "json_dump/codecs.py" = ["S307"]
 "scripts/check_binary.py" = ["S603"]
+"scripts/check_docs.py" = ["S603"]
 # Every script in scripts/ has to put the repo root on sys.path before it can
 # import json_dump, because they are run from a checkout rather than from an
 # installed package. That is an import after a statement, by construction.

@@ -5,8 +5,9 @@
 # "it passed locally" and "it passed in CI" cannot drift apart.
 #
 # Nothing in this file is needed to *use* json-dump. The package itself has no
-# dependencies at all (see CLAUDE.md); everything below installs into throwaway
-# virtualenvs under this directory, and `make clean` removes every trace.
+# dependencies at all — `make core-check` is the target that proves it; everything
+# below installs into throwaway virtualenvs under this directory, and `make clean`
+# removes every trace.
 
 SHELL := /usr/bin/env bash
 
@@ -282,6 +283,16 @@ core-check:
 completions-check:
 	$(PY) scripts/check_completions.py
 
+# This repository is public; the internal documentation is not. .gitignore is
+# necessary and nowhere near sufficient -- it says nothing about a path that is
+# already tracked, and `git add -f` overrides it silently. Both failures are
+# invisible in a diff and permanent once pushed, because deleting a file does
+# not remove it from the commits that carried it.
+## docs-check: fail if internal docs are tracked, or referenced from published files
+.PHONY: docs-check
+docs-check:
+	$(PY) scripts/check_docs.py
+
 # ------------------------------------------------------------------- security
 
 # Two different questions, deliberately kept as two targets.
@@ -465,11 +476,11 @@ uninstall:
 #> make check                       # every gate CI enforces
 ## check: everything CI enforces, in CI's order
 .PHONY: check
-check: fmt-check lint typecheck core-check completions-check test test-isolated vuln audit
+check: fmt-check lint typecheck core-check completions-check docs-check test test-isolated vuln audit
 
 ## precommit: the fast gate the pre-commit hook runs
 .PHONY: precommit
-precommit: fmt-check lint core-check test
+precommit: fmt-check lint core-check docs-check test
 
 # --------------------------------------------------------------------- tools
 
