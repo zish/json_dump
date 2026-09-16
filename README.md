@@ -61,7 +61,7 @@ notations: perl, python, javascript, cpp, go, rust, ruby, php, lua, r, jq, jsonp
 
 Nuitka is not a dependency and is not downloaded until that target runs.
 
-[INSTALL.md](INSTALL.md) has the rest: every extra, installing from source,
+[INSTALL.md][install] has the rest: every extra, installing from source,
 running straight from a checkout, the single-file binary, shell completion and
 the manpage.
 
@@ -166,7 +166,7 @@ directory named in `$JSON_DUMP_TEMPLATES` — and it becomes `--template
 kotlin`. Built-in names always resolve first, so nothing can quietly redefine
 `perl` for a script that expected it.
 
-[contrib/templates/](contrib/templates/) has three worked examples: inheriting
+[contrib/templates/][templates] has three worked examples: inheriting
 with `base`, a flat TSV notation written from scratch, and one that emits SQL
 `INSERT` statements with a header.
 
@@ -204,7 +204,7 @@ were still as ubiquitous on a fresh machine as it once was. The rewrite exists
 because that assumption stopped holding, not because the notation needed
 fixing: the default `perl` output is the same notation, for the same reason.
 
-[json_dump.pl](json_dump.pl) is still in the tree, and the test suite still
+[json_dump.pl][perl-script] is still in the tree, and the test suite still
 compares against it line for line whenever `perl` is installed. `--perl-compat`
 reproduces its output byte for byte, quirks and all: `null` renders as `""`
 rather than `undef`, empty maps and arrays produce no line at all, and `-e`
@@ -215,19 +215,19 @@ meanings.
 
 - `man json-dump`
 - `json-dump --help`
-- [INSTALL.md](INSTALL.md) — extras, source installs, completion, manpage
-- [ROADMAP.md](ROADMAP.md) — planned work: SQL-style filtering, an
+- [INSTALL.md][install] — extras, source installs, completion, manpage
+- [ROADMAP.md][roadmap] — planned work: SQL-style filtering, an
   interactive shell, out-of-core storage for structures larger than RAM,
   Ibis integration, and publication to document stores.
-- [AUTHORS.md](AUTHORS.md) — who wrote it
+- [AUTHORS.md][authors] — who wrote it
 
 ## Shell completion
 
-Completion for bash, fish and zsh lives in [contrib/completions/](contrib/completions/).
+Completion for bash, fish and zsh lives in [contrib/completions/][completions].
 Each queries `json-dump -L --porcelain` and `--list-templates --porcelain`, so
 the candidates offered always match the optional packages actually installed and
 the templates actually on your search path — no hard-coded lists to drift.
-See [INSTALL.md](INSTALL.md#shell-completion) for where to put them.
+See [INSTALL.md][install-completion] for where to put them.
 
 ## Tests
 
@@ -265,16 +265,30 @@ with every extra, and with **none** — the second being the one that catches an
 optional import escaping to module scope, which works fine on every machine
 that has the package. Security coverage is ruff's bandit rules and CodeQL over
 the source, `pip-audit` over the optional dependency set, and `zizmor` over the
-workflows themselves. See [SECURITY.md](SECURITY.md) for the threat model.
+workflows themselves. See [SECURITY.md][security] for the threat model.
 
 ## License
 
 Copyright 2026 Jeremy Melanson.
 
-Licensed under the [Apache License, Version 2.0](LICENSE). You may not use this
+Licensed under the [Apache License, Version 2.0][license]. You may not use this
 software except in compliance with the License. Unless required by applicable
 law or agreed to in writing, it is distributed on an "AS IS" BASIS, WITHOUT
 WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 
 `json_dump.pl`, the Perl script this tool descends from, is covered by the same
 terms.
+
+<!-- Link targets are absolute because this README is also the PyPI project
+     page, where a relative link resolves against pypi.org and 404s. Defined
+     once here so a move or a branch rename is one edit rather than ten. -->
+
+[install]: https://github.com/zish/json_dump/blob/master/INSTALL.md
+[install-completion]: https://github.com/zish/json_dump/blob/master/INSTALL.md#shell-completion
+[roadmap]: https://github.com/zish/json_dump/blob/master/ROADMAP.md
+[authors]: https://github.com/zish/json_dump/blob/master/AUTHORS.md
+[security]: https://github.com/zish/json_dump/blob/master/SECURITY.md
+[license]: https://github.com/zish/json_dump/blob/master/LICENSE
+[perl-script]: https://github.com/zish/json_dump/blob/master/json_dump.pl
+[templates]: https://github.com/zish/json_dump/tree/master/contrib/templates
+[completions]: https://github.com/zish/json_dump/tree/master/contrib/completions
