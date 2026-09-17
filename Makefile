@@ -327,10 +327,22 @@ audit: $(NEED_ZIZMOR)
 # Built with the pinned `build` frontend from .venv-tools rather than whatever
 # the ambient interpreter happens to have, so that a release artifact does not
 # depend on the state of the machine that cut it.
+#
+# The egg-info directory goes with it, and that is not tidiness. setuptools
+# caches the sdist's file list in json_dump.egg-info/SOURCES.txt and reads it
+# back on the next build -- "reading manifest file" appears in the log *before*
+# "reading manifest template". A path dropped from MANIFEST.in therefore keeps
+# shipping, because the cache still names it, and the build reports success.
+#
+# What makes that worth a line of the recipe rather than a note somewhere: a
+# fresh checkout has no cache, so CI and the release job never see it. The
+# difference is local-only, which means the tarball a developer builds to
+# inspect can disagree with the one CI builds from the same commit -- and the
+# one being inspected is the one that looks right.
 ## dist: build the sdist and wheel into dist/
 .PHONY: dist
 dist: $(NEED_BUILD)
-	@rm -rf $(CURDIR)/dist
+	@rm -rf $(CURDIR)/dist $(CURDIR)/*.egg-info
 	$(TOOLS_ENV)/bin/python -m build --outdir $(CURDIR)/dist
 
 # --- the source tarball -----------------------------------------------------
