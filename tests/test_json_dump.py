@@ -14,7 +14,6 @@ import contextlib
 import io
 import json
 import os
-import subprocess
 import sys
 import tempfile
 import unittest
@@ -629,31 +628,47 @@ class TestCli(unittest.TestCase):
 
 
 class TestPerlParity(unittest.TestCase):
-    """Compare against the original script when perl is available."""
+    """--perl-compat against output frozen from the original json_dump.pl.
 
-    SCRIPT = Path(__file__).resolve().parent.parent / "json_dump.pl"
-    SAMPLES = sorted(
-        (Path(__file__).resolve().parent.parent / "contrib").glob("*.json")
-    )
+    The Perl script is no longer in the tree; what it printed is.  Each file in
+    tests/golden/ was captured from json_dump.pl before it was removed, one per
+    document in contrib/, and together they *are* the compatibility promise --
+    every line --perl-compat emits for these documents, and no others.
 
-    def test_matches_json_dump_pl(self):
-        if not self.SCRIPT.exists():
-            self.skipTest("json_dump.pl not present")
-        if not self.SAMPLES:
-            self.skipTest("no sample JSON in contrib/")
-        try:
-            perl = subprocess.run(
-                ["perl", str(self.SCRIPT), "-e", str(self.SAMPLES[0])],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-        except (FileNotFoundError, subprocess.CalledProcessError):
-            self.skipTest("perl unavailable")
+    Frozen rather than live, and the trade is worth stating.  A live comparison
+    proved agreement with whatever json_dump.pl did that day; a frozen one
+    proves agreement with what it did on the day it was retired, which is the
+    thing the promise was ever about -- a script that is gone will not be
+    changing.  What is given up is noticing if the original were edited, and
+    there is no original left to edit.
 
-        _, ours = run(["--perl-compat", "-e", str(self.SAMPLES[0])])
-        # Perl randomises hash iteration order, so compare as sets of lines.
-        self.assertEqual(sorted(perl.stdout.splitlines()), sorted(ours.splitlines()))
+    What is gained is that this now runs.  The live version skipped itself
+    wherever perl was absent, which is most minimal containers and was every
+    environment that did not happen to have it; the promise went unchecked
+    exactly where nobody was looking.  It also covers all three documents
+    rather than the alphabetically first one, which is all the old comparison
+    ever reached.
+
+    Perl randomises hash iteration order, so the comparison was always
+    line-set based and stays that way.  Both sides are sorted here rather than
+    trusting the file to have been sorted the same way it will be read.
+    """
+
+    GOLDEN: ClassVar[Path] = Path(__file__).resolve().parent / "golden"
+    CONTRIB: ClassVar[Path] = Path(__file__).resolve().parent.parent / "contrib"
+
+    def test_matches_frozen_perl_output(self):
+        frozen = sorted(self.GOLDEN.glob("*.perl-compat"))
+        self.assertTrue(frozen, "tests/golden/ has no frozen perl output")
+        for golden in frozen:
+            document = self.CONTRIB / f"{golden.stem}.json"
+            with self.subTest(document=document.name):
+                self.assertTrue(document.exists(), f"{document} is missing")
+                _, ours = run(["--perl-compat", "-e", str(document)])
+                self.assertEqual(
+                    sorted(golden.read_text(encoding="utf-8").splitlines()),
+                    sorted(ours.splitlines()),
+                )
 
 
 if __name__ == "__main__":

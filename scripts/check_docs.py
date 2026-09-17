@@ -113,7 +113,6 @@ ALLOWED_ROOT = frozenset(
         "contrib",
         "INSTALL.md",
         "json_dump",
-        "json_dump.pl",
         "lefthook.yml",
         "LICENSE",
         "Makefile",

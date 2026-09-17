@@ -27,19 +27,25 @@ that adding to one does not look like a licence to add to another:
 
   test fixtures   everything tests/test_json_dump.py opens from the checkout.
 
-The fixture group is declared rather than discovered, and the reason is worth
-recording because the obvious alternative looks better than it is.  Watching an
-audit hook while the suite runs would catch every ``open()`` -- but TestPerlParity
-reaches json_dump.pl and contrib/*.json through subprocess, never opening them,
-and skips itself outright where perl is absent.  A derivation that quietly
-returns less on a machine without perl is worse than a list, because what it
-drops is invisible until someone unpacks the tarball.
+The fixture group is declared rather than discovered.  The original argument for
+that was specific and is now gone: TestPerlParity used to reach json_dump.pl and
+contrib/*.json through subprocess, never opening them, and skipped itself where
+perl was absent -- so an audit hook watching ``open()`` during a suite run would
+have derived a *shorter* list on a machine without perl, and the omission would
+not have surfaced until someone unpacked the tarball.  The Perl script has since
+been retired and its output frozen into tests/golden/, which the suite reads
+like any other file.
 
-So it is a list, with the two properties that make a list survivable.  The
-entries are *patterns*: a fourth worked example or a fifth parity sample is
-carried with no edit here, and only a brand-new fixture directory needs one.
-And `make sdist-check` runs the suite from the built tarball, so the edit that
-was forgotten fails a gate instead of a release.
+What survives that is the weaker, more general form of the same objection: a
+derivation from one run describes the machine it ran on.  A test skipped for a
+missing optional package contributes nothing, and nothing says so.
+
+So it stays a list, with the two properties that make a list survivable.  The
+entries are *patterns*: a fourth worked example, a fifth parity sample, or a
+whole directory of frozen output arrives with no edit here -- ``graft tests``
+picked up tests/golden/ on its own.  And `make sdist-check` runs the suite from
+the built tarball, so an edit that was needed and forgotten fails a gate instead
+of a release.
 
 Usage:
     python3 scripts/manifest_in.py            # print the file
@@ -132,7 +138,6 @@ FIXTURES = (
     ),
     Entry("contrib/templates/*.md", "what those examples are for"),
     Entry("contrib/*.json", "TestPerlParity.SAMPLES -- fed to both implementations"),
-    Entry("json_dump.pl", "TestPerlParity.SCRIPT -- the reference implementation"),
 )
 
 

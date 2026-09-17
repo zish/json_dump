@@ -37,8 +37,9 @@ These do not change without a major version.
 
 - **The default pseudo-perl notation** — `ROOT.{key}.0."value"`, exactly as it
   renders today.
-- **`--perl-compat` output**, which is byte-identical to the original
-  `json_dump.pl` and tested that way on every change.
+- **`--perl-compat` output**, which reproduces the original `json_dump.pl`
+  byte for byte. That script's output is frozen in the repository and every
+  change is compared against it, so this is checked rather than claimed.
 - **Command-line flags** — their long names, their short forms, and what they
   do.
 - **Format and template names, and their aliases.** `--to yaml` and `-t perl`

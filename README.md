@@ -204,9 +204,11 @@ were still as ubiquitous on a fresh machine as it once was. The rewrite exists
 because that assumption stopped holding, not because the notation needed
 fixing: the default `perl` output is the same notation, for the same reason.
 
-[json_dump.pl][perl-script] is still in the tree, and the test suite still
-compares against it line for line whenever `perl` is installed. `--perl-compat`
-reproduces its output byte for byte, quirks and all: `null` renders as `""`
+The Perl script itself is retired, but the comparison is not: its output for
+every document in `contrib/` is frozen in the repository, and every change is
+checked against it line for line. That check used to skip wherever `perl` was
+absent; now it runs everywhere. `--perl-compat` reproduces the original byte for
+byte, quirks and all: `null` renders as `""`
 rather than `undef`, empty maps and arrays produce no line at all, and `-e`
 escapes only CR and LF. The flags `-r`, `-m` and `-e` kept their original
 meanings.
@@ -281,9 +283,6 @@ software except in compliance with the License. Unless required by applicable
 law or agreed to in writing, it is distributed on an "AS IS" BASIS, WITHOUT
 WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 
-`json_dump.pl`, the Perl script this tool descends from, is covered by the same
-terms.
-
 <!-- Link targets are absolute because this README is also the PyPI project
      page, where a relative link resolves against pypi.org and 404s. Defined
      once here so a move or a branch rename is one edit rather than ten. -->
@@ -296,6 +295,5 @@ terms.
 [versioning]: https://github.com/zish/json_dump/blob/master/VERSIONING.md
 [security]: https://github.com/zish/json_dump/blob/master/SECURITY.md
 [license]: https://github.com/zish/json_dump/blob/master/LICENSE
-[perl-script]: https://github.com/zish/json_dump/blob/master/json_dump.pl
 [templates]: https://github.com/zish/json_dump/tree/master/contrib/templates
 [completions]: https://github.com/zish/json_dump/tree/master/contrib/completions

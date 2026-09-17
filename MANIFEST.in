@@ -60,9 +60,6 @@ include contrib/templates/*.md
 # TestPerlParity.SAMPLES -- fed to both implementations
 include contrib/*.json
 
-# TestPerlParity.SCRIPT -- the reference implementation
-include json_dump.pl
-
 # --- never ------------------------------------------------------------------
 # `graft` takes what is on the disk, and git's ignore rules have no say in a
 # source distribution. Last, because MANIFEST.in applies its directives in the
