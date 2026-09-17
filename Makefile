@@ -299,6 +299,19 @@ completions-check:
 docs-check:
 	$(PY) scripts/check_docs.py
 
+# One number, named in two files and sometimes a tag. pyproject.toml reads the
+# version out of the package rather than restating it, so pip metadata and
+# `--version` cannot drift; this checks that arrangement is still in place, that
+# the manpage agrees, and -- the one that cannot be repaired -- that a `v*` tag
+# on HEAD matches the tree it points at. release.yml builds whatever the tag
+# points at, and a package index keeps version numbers forever: a wrong upload
+# can only be yanked, which hides the number without freeing it.
+#> make version-check                   # before tagging, and in every gate run
+## version-check: fail if anything naming a version disagrees with the package
+.PHONY: version-check
+version-check:
+	$(PY) scripts/check_version.py
+
 # ------------------------------------------------------------------- security
 
 # Two different questions, deliberately kept as two targets.
@@ -529,11 +542,11 @@ uninstall:
 #> make check                       # every gate CI enforces
 ## check: everything CI enforces, in CI's order
 .PHONY: check
-check: fmt-check lint typecheck core-check completions-check docs-check manifest-check test test-isolated sdist-check vuln audit
+check: fmt-check lint typecheck core-check completions-check docs-check version-check manifest-check test test-isolated sdist-check vuln audit
 
 ## precommit: the fast gate the pre-commit hook runs
 .PHONY: precommit
-precommit: fmt-check lint core-check docs-check manifest-check test
+precommit: fmt-check lint core-check docs-check version-check manifest-check test
 
 # --------------------------------------------------------------------- tools
 

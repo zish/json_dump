@@ -89,6 +89,11 @@ jobs:
       # tarball and runs the suite inside it.
       - run: make manifest-check
 
+      # Cheap here, and the same check release.yml runs before it builds
+      # anything -- there it is the one standing between a mistagged commit and
+      # a permanent, wrong version number on the index.
+      - run: make version-check
+
   test:
     name: test (${{ matrix.python }}, ${{ matrix.deps }})
     runs-on: ubuntu-latest

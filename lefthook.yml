@@ -51,6 +51,11 @@ pre-commit:
     - name: MANIFEST.in is current
       run: make manifest-check
 
+    # One interpreter start. Catches the half-finished bump -- __version__ moved,
+    # the manpage not -- at the moment it is cheapest to finish.
+    - name: versions agree
+      run: make version-check
+
 pre-push:
   parallel: false
   jobs:

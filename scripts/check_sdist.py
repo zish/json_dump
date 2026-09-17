@@ -4,7 +4,8 @@
 
 """Unpack a built sdist and prove its test suite passes inside it.
 
-    python3 scripts/check_sdist.py dist/json_dump-0.2.0.tar.gz
+    python3 scripts/check_sdist.py            # the newest tarball in dist/
+    python3 scripts/check_sdist.py PATH.tar.gz
 
 The tarball is the artifact nobody looks at.  A wheel is inspected constantly --
 it is what `pip install` produces and what every developer runs against -- while

@@ -54,6 +54,11 @@ jobs:
           python-version: "3.13"
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
 
+      # First, and before anything is built: this is the tag-versus-tree check.
+      # A `v1.1.0` tag on a commit that still says 1.0.0 would otherwise upload
+      # a 1.0.0 artifact, to an index where that number is then taken forever.
+      - run: make version-check
+
       # sdist-check rather than dist: it builds the same artifacts and then
       # unpacks the tarball and runs the suite inside it. The tarball uploaded
       # here is the one published, so proving it before the upload is the only
