@@ -239,6 +239,10 @@ The suite runs the original Perl script alongside the rewrite and compares the
 output line for line when `perl` is available, and round-trips every installed
 format.
 
+The source distribution on PyPI carries the suite *and* everything it reads, so
+the same command works from an unpacked tarball with no clone — see
+[INSTALL.md][install-sdist] if you are packaging this for a distribution.
+
 ## Development
 
 `make` is the front end. The git hooks and the GitHub workflows call the same
@@ -284,6 +288,7 @@ terms.
      once here so a move or a branch rename is one edit rather than ten. -->
 
 [install]: https://github.com/zish/json_dump/blob/master/INSTALL.md
+[install-sdist]: https://github.com/zish/json_dump/blob/master/INSTALL.md#building-from-the-source-distribution
 [install-completion]: https://github.com/zish/json_dump/blob/master/INSTALL.md#shell-completion
 [roadmap]: https://github.com/zish/json_dump/blob/master/ROADMAP.md
 [authors]: https://github.com/zish/json_dump/blob/master/AUTHORS.md

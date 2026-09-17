@@ -333,6 +333,41 @@ dist: $(NEED_BUILD)
 	@rm -rf $(CURDIR)/dist
 	$(TOOLS_ENV)/bin/python -m build --outdir $(CURDIR)/dist
 
+# --- the source tarball -----------------------------------------------------
+#
+# MANIFEST.in is generated, not written. scripts/manifest_in.py holds the
+# patterns with a reason beside each one, and reads the manpage and completion
+# paths straight out of pyproject.toml so that those stay named in one place.
+# Patterns rather than filenames, so a fourth worked example or a fifth parity
+# sample is carried with no edit anywhere.
+#> make manifest                        # after editing scripts/manifest_in.py
+## manifest: regenerate MANIFEST.in from scripts/manifest_in.py
+.PHONY: manifest
+manifest:
+	$(PY) scripts/manifest_in.py --write
+
+## manifest-check: fail if MANIFEST.in and its generator disagree
+.PHONY: manifest-check
+manifest-check:
+	$(PY) scripts/manifest_in.py --check
+
+# The wheel is inspected constantly; the sdist is the artifact nobody looks at
+# and distro packagers build from. setuptools sweeps *.py from the project root
+# by default and data files not at all, so for two releases the tarball carried
+# a test suite and none of the fixtures it reads -- failing during a packager's
+# build, where it reads as a broken release rather than a packaging bug.
+#
+# Reading MANIFEST.in cannot catch that. What the tarball holds is that file's
+# patterns layered over a default set nobody wrote down, evaluated by the build
+# backend against the working tree. The only honest way to know is to build one
+# and look, which is what this does: every promised file must be in the archive,
+# and the suite must pass from inside the unpacked tree.
+#> make sdist-check                     # prove the tarball passes its own suite
+## sdist-check: unpack the built sdist and run its test suite inside it
+.PHONY: sdist-check
+sdist-check: manifest-check dist
+	$(PY) scripts/check_sdist.py
+
 # --- the single-file binary -------------------------------------------------
 #
 # Nuitka compiles the package to C and links it, with CPython and the selected
@@ -482,11 +517,11 @@ uninstall:
 #> make check                       # every gate CI enforces
 ## check: everything CI enforces, in CI's order
 .PHONY: check
-check: fmt-check lint typecheck core-check completions-check docs-check test test-isolated vuln audit
+check: fmt-check lint typecheck core-check completions-check docs-check manifest-check test test-isolated sdist-check vuln audit
 
 ## precommit: the fast gate the pre-commit hook runs
 .PHONY: precommit
-precommit: fmt-check lint core-check docs-check test
+precommit: fmt-check lint core-check docs-check manifest-check test
 
 # --------------------------------------------------------------------- tools
 

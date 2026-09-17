@@ -144,6 +144,24 @@ tool grew out of, byte for byte, whenever `perl` is on your `PATH`; that test
 skips itself otherwise. The Perl script needs no CPAN modules — `JSON::PP`,
 `Data::Dumper` and `Getopt::Long` have all been core Perl for years.
 
+### Building from the source distribution
+
+Distribution packagers build from the `.tar.gz` on PyPI rather than from a
+clone, and it carries everything the suite reads: the worked template examples,
+the sample documents, and the Perl script the parity test compares against. No
+checkout and nothing installed:
+
+```console
+$ tar xf json_dump-*.tar.gz
+$ cd json_dump-*/
+$ python3 -m unittest discover -s tests -v
+```
+
+The tests import the package from the tree beside them, which works because the
+core needs nothing outside the standard library. Any optional format whose
+package is absent is skipped, not failed, so a bare build environment gives a
+clean run.
+
 ## Run without installing
 
 Because the core is pure standard library, a checkout is already runnable:

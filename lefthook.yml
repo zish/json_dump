@@ -45,6 +45,12 @@ pre-commit:
     - name: nothing private reaches the public tree
       run: make docs-check
 
+    # MANIFEST.in is generated from scripts/manifest_in.py, so the two can be
+    # committed out of step. One interpreter start, and the alternative to
+    # catching it here is catching it in CI's sdist job minutes later.
+    - name: MANIFEST.in is current
+      run: make manifest-check
+
 pre-push:
   parallel: false
   jobs:

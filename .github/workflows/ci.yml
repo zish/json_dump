@@ -83,6 +83,12 @@ jobs:
       # shallow checkout is enough.
       - run: make docs-check
 
+      # MANIFEST.in is generated. This compares the committed file against what
+      # scripts/manifest_in.py produces, which is the cheap half of the sdist
+      # question -- the expensive half is the `sdist` job below, which builds a
+      # tarball and runs the suite inside it.
+      - run: make manifest-check
+
   test:
     name: test (${{ matrix.python }}, ${{ matrix.deps }})
     runs-on: ubuntu-latest
@@ -165,6 +171,32 @@ jobs:
       # Nothing is pip-installed here on purpose: the target has to build its
       # own environment, and a pre-installed one would hide it failing to.
       - run: make test-isolated
+
+  # The sdist is the artifact nobody looks at. The wheel is exercised by every
+  # other job here and by every `pip install`; the tarball is read by distro
+  # packagers and by pip on any platform without a wheel, and for two releases
+  # it carried the test suite without the fixtures the suite reads. That failed
+  # during a packager's build rather than in CI, where it reads as a broken
+  # release. This builds one and runs its suite from inside the unpacked tree.
+  sdist:
+    name: sdist passes its own suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # checkout leaves the job's token in .git/config unless told not
+          # to. Nothing here needs to push, and a workspace that gets
+          # archived would carry the credential with it.
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.13"
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+
+      # perl is on the ubuntu runners, so TestPerlParity runs here rather than
+      # skipping -- which makes this the one job that proves the parity fixtures
+      # reached the tarball, as opposed to merely that nothing asserted on them.
+      - run: make sdist-check
 
   vuln:
     name: dependency vulnerabilities

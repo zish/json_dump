@@ -117,6 +117,7 @@ ALLOWED_ROOT = frozenset(
         "lefthook.yml",
         "LICENSE",
         "Makefile",
+        "MANIFEST.in",
         "man",
         "pyproject.toml",
         "README.md",
@@ -136,10 +137,17 @@ ALLOWED_TO_NAME_THEM = frozenset({".gitignore", "scripts/check_docs.py"})
 def tracked_files() -> list[str] | None:
     """Every path in the index, or None when there is no index to read.
 
-    Returning None rather than raising keeps `make check` usable from an
-    unpacked sdist, which has no git metadata and therefore nothing this check
-    could be wrong about.  Resolving git to an absolute path up front makes
-    "git is not installed" the same quiet no-op as "this is not a checkout".
+    Every question below is a question about the index -- is this path tracked,
+    is that one -- so a tree without an index has no answer rather than a wrong
+    one, and None says exactly that.  Raising would instead fail this gate for a
+    tree that is doing nothing wrong: the tarball GitHub generates for a release
+    tag is the whole checkout minus `.git`, Makefile and scripts/ included, and
+    it is what a packager building from a tag unpacks.  Resolving git to an
+    absolute path up front makes "git is not installed" -- a minimal build
+    container, usually -- the same quiet no-op as "this is not a checkout".
+
+    Not the PyPI sdist, which carries neither the Makefile nor this file and so
+    has nothing here to run.  `make sdist-check` is what covers that tarball.
     """
     git = shutil.which("git")
     if git is None:
