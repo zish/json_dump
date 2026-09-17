@@ -216,6 +216,7 @@ meanings.
 - `man json-dump`
 - `json-dump --help`
 - [INSTALL.md][install] — extras, source installs, completion, manpage
+- [VERSIONING.md][versioning] — what a major bump means, and what is promised
 - [ROADMAP.md][roadmap] — planned work: SQL-style filtering, an
   interactive shell, out-of-core storage for structures larger than RAM,
   Ibis integration, and publication to document stores.
@@ -292,6 +293,7 @@ terms.
 [install-completion]: https://github.com/zish/json_dump/blob/master/INSTALL.md#shell-completion
 [roadmap]: https://github.com/zish/json_dump/blob/master/ROADMAP.md
 [authors]: https://github.com/zish/json_dump/blob/master/AUTHORS.md
+[versioning]: https://github.com/zish/json_dump/blob/master/VERSIONING.md
 [security]: https://github.com/zish/json_dump/blob/master/SECURITY.md
 [license]: https://github.com/zish/json_dump/blob/master/LICENSE
 [perl-script]: https://github.com/zish/json_dump/blob/master/json_dump.pl

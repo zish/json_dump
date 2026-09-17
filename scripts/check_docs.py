@@ -125,6 +125,7 @@ ALLOWED_ROOT = frozenset(
         "scripts",
         "SECURITY.md",
         "tests",
+        "VERSIONING.md",
     }
 )
 

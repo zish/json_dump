@@ -117,6 +117,7 @@ DOCS = (
     Entry("INSTALL.md", "extras, source installs, completion, the manpage"),
     Entry("ROADMAP.md", "what is not built yet, and why"),
     Entry("SECURITY.md", "how to report something -- the first file an auditor opens"),
+    Entry("VERSIONING.md", "what a major bump means -- the compatibility promise"),
 )
 
 # Everything tests/test_json_dump.py reads from the checkout. The comment on

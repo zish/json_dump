@@ -20,6 +20,9 @@ include ROADMAP.md
 # how to report something -- the first file an auditor opens
 include SECURITY.md
 
+# what a major bump means -- the compatibility promise
+include VERSIONING.md
+
 # --- installed data files ---------------------------------------------------
 # Derived from pyproject.toml's [tool.setuptools.data-files], so the manpage
 # and the completions stay named in exactly one place.
