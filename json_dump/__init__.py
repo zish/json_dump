@@ -12,7 +12,7 @@ a user writes) lives in :mod:`json_dump.templates`, and a pluggable set of
 optional serialisation formats turns the same walk into a converter.
 """
 
-__version__ = "0.2.0"
+__version__ = "1.0.0"
 __author__ = "Jeremy Melanson"
 
 __all__ = ["__author__", "__version__"]
