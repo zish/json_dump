@@ -73,6 +73,17 @@ pre-push:
     - name: test
       run: make test
 
+    # Last, and the only gate here that touches a build artifact rather than
+    # the tree. Push is the moment for it. `manifest-check` runs at commit time
+    # and compares MANIFEST.in against its generator, which is the cheap half;
+    # what this adds is the half that comparison structurally cannot reach -- a
+    # fixture directory added to a test with no pattern carrying it, where both
+    # files are self-consistent and the tarball is still short. CI runs it too,
+    # but that verdict arrives after the push has landed, and this repository
+    # pushes to master. Three seconds, less than the mypy run above.
+    - name: the sdist passes its own suite
+      run: make sdist-check
+
 commit-msg:
   jobs:
     - name: subject length
