@@ -330,10 +330,22 @@ version-check:
 vuln: $(NEED_PIP_AUDIT)
 	$(PIP_AUDIT) --strict --progress-spinner=off .
 
+# zizmor runs offline unless it has a token, and offline it skips every audit
+# that has to ask GitHub something. One of those is ref-version-mismatch, which
+# fires when an upstream action moves a floating tag out from under a SHA pin --
+# the finding that broke a push after github/codeql-action moved `v4` off the
+# commit our `# v4` comment claimed it was.
+#
+# That made this gate mean less here than in CI, where the job already has a
+# GITHUB_TOKEN: it passed locally and failed on push, over a finding the local
+# run never looked for. Borrowing gh(1)'s token closes the gap wherever one is
+# available; where none is, zizmor says it is offline rather than pretending.
+# Recipe silenced so no token can reach a log, however it was supplied.
 ## audit: static analysis of the GitHub Actions workflows (zizmor)
 .PHONY: audit
 audit: $(NEED_ZIZMOR)
-	$(ZIZMOR) --persona=regular .github/
+	@GH_TOKEN="$${GH_TOKEN:-$$(gh auth token 2>/dev/null)}" \
+	    $(ZIZMOR) --persona=regular .github/
 
 # --------------------------------------------------------------------- build
 
