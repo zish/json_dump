@@ -147,9 +147,17 @@ jobs:
       # gh(1) is preinstalled on the runners, so the release is cut without a
       # third-party action -- one less external repository with write access to
       # this one's releases.
+      # GH_REPO because this job deliberately does not check the repository out
+      # -- it needs four built files, not a source tree. gh(1) normally works
+      # out which repository to act on by reading the git remote of the
+      # directory it is run from, and with no checkout there is no remote and
+      # no .git, so it exits with "fatal: not a git repository" before it ever
+      # reaches the API. Naming the repository explicitly is what that variable
+      # is for, and it beats adding a checkout to produce a side effect.
       - name: create or update the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           tag="${GITHUB_REF_NAME}"
